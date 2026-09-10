@@ -17,12 +17,14 @@
 
 #include "tag_db.h"
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
@@ -35,6 +37,7 @@
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
+#include "string_view.h"
 #include "thread_pool.h"
 #include "timer.h"
 
@@ -75,6 +78,10 @@ struct {
     return std::strcmp(x->name, y->name) < 0;
   }
 } constexpr ByName = {};
+
+struct {
+  bool operator()(const char* x, const char* y) const { return std::strcmp(x, y) < 0; }
+} constexpr ByStr = {};
 
 const char* StripTag(const char* ref) {
   for (size_t i = 0; i != sizeof(kTagPrefix) - 1; ++i) {
@@ -164,10 +171,39 @@ void TagDb::ReadLooseTags() {
   int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return;
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
-  // TODO: recursively traverse directories so that the file refs/tags/foo/bar gets interpreted
-  // as the tag foo/bar. See https://github.com/romkatv/gitstatus/issues/254.
-  (void)ListDir(dir_fd, loose_arena_, loose_tags_, /* precompose_unicode = */ false,
-                /* case_sensitive = */ true);
+  // The top level comes out of ListDir sorted, but a tag like foo/bar lands
+  // wherever its directory was visited, and IsLooseTag() binary searches
+  if (ReadLooseTagsDir(dir_fd, "")) {
+    std::sort(loose_tags_.begin(), loose_tags_.end(), ByStr);
+  }
+}
+
+// Appends the tags under dir_fd to loose_tags_, so that refs/tags/foo/bar is the
+// tag foo/bar. Returns true if it descended into a subdirectory.
+// See https://github.com/romkatv/gitstatus/issues/254.
+bool TagDb::ReadLooseTagsDir(int dir_fd, const char* prefix) {
+  std::vector<char*> entries;
+  if (!ListDir(dir_fd, loose_arena_, entries, /* precompose_unicode = */ false,
+               /* case_sensitive = */ true)) {
+    return false;
+  }
+  bool nested = false;
+  for (char* entry : entries) {
+    unsigned char type = DirEntryType(entry);
+    if (type == DT_DIR || type == DT_UNKNOWN || type == DT_LNK) {
+      int fd = openat(dir_fd, entry, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      if (fd >= 0) {
+        ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
+        nested = true;
+        ReadLooseTagsDir(fd, loose_arena_.StrCat(StringView(prefix), StringView(entry), "/"));
+        continue;
+      }
+      if (errno != ENOTDIR) continue;
+    }
+    loose_tags_.push_back(
+        *prefix ? loose_arena_.StrCat(StringView(prefix), StringView(entry)) : entry);
+  }
+  return nested;
 }
 
 void TagDb::UpdatePack() {
@@ -297,8 +333,7 @@ void TagDb::Wait() {
 }
 
 bool TagDb::IsLooseTag(const char* name) const {
-  return std::binary_search(loose_tags_.begin(), loose_tags_.end(), name,
-                            [](const char* a, const char* b) { return std::strcmp(a, b) < 0; });
+  return std::binary_search(loose_tags_.begin(), loose_tags_.end(), name, ByStr);
 }
 
 bool TagDb::TagHasTarget(const char* name, const git_oid* target) const {

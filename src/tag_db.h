@@ -49,6 +49,7 @@ class TagDb {
 
  private:
   void ReadLooseTags();
+  bool ReadLooseTagsDir(int dir_fd, const char* prefix);
   void UpdatePack();
   void ParsePack();
   void ParseOid(git_oid& oid, const char* begin, const char* end) const;
