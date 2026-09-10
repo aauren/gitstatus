@@ -48,6 +48,7 @@ class TagDb {
   std::string TagForCommit(const git_oid& oid);
 
  private:
+  std::string TagForCommitReftable(const git_oid& oid);
   void ReadLooseTags();
   bool ReadLooseTagsDir(int dir_fd, const char* prefix);
   void UpdatePack();
@@ -62,6 +63,9 @@ class TagDb {
   git_repository* const repo_;
   const git_oid_t oid_type_;
   const size_t oid_hexsz_;
+  // extensions.refStorage as of when the repo was opened, which is also when
+  // libgit2 picks its refdb backend, so the two can't disagree
+  const bool reftable_;
 
   Arena pack_arena_;
   struct stat pack_stat_ = {};

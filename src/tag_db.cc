@@ -101,12 +101,25 @@ size_t OidHexSize(git_oid_t type) {
   throw Exception();
 }
 
+bool IsReftable(git_repository* repo) {
+  git_config* cfg;
+  if (git_repository_config_snapshot(&cfg, repo)) {
+    LOG(WARN) << "git_repository_config_snapshot: " << GitError();
+    return false;
+  }
+  ON_SCOPE_EXIT(&) { git_config_free(cfg); };
+  const char* val;
+  if (git_config_get_string(&val, cfg, "extensions.refstorage")) return false;
+  return !std::strcmp(val, "reftable");
+}
+
 }  // namespace
 
 TagDb::TagDb(git_repository* repo)
     : repo_(repo),
       oid_type_(git_repository_oid_type(repo)),
       oid_hexsz_(OidHexSize(oid_type_)),
+      reftable_(IsReftable(repo)),
       pack_(&pack_arena_),
       name2id_(&pack_arena_),
       id2name_(&pack_arena_) {
@@ -128,6 +141,8 @@ TagDb::~TagDb() {
 }
 
 std::string TagDb::TagForCommit(const git_oid& oid) {
+  if (reftable_) return TagForCommitReftable(oid);
+
   ReadLooseTags();
   UpdatePack();
 
@@ -159,6 +174,37 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
   }
 
   return res;
+}
+
+// Under reftable there is no refs/tags directory or packed-refs to read, so we
+// go through libgit2's ref iterator instead. Every ref that points at a tag
+// object is stored with its peeled target (git and libgit2 both peel on write),
+// which is why this doesn't need any object lookups. It's still slower than
+// the files path since every query walks every tag.
+std::string TagDb::TagForCommitReftable(const git_oid& oid) {
+  git_reference_iterator* it;
+  VERIFY(!git_reference_iterator_glob_new(&it, repo_, "refs/tags/*")) << GitError();
+  ON_SCOPE_EXIT(&) { git_reference_iterator_free(it); };
+
+  std::string res;
+  while (true) {
+    git_reference* ref;
+    switch (git_reference_next(&ref, it)) {
+      case 0:
+        break;
+      case GIT_ITEROVER:
+        return res;
+      default:
+        LOG(ERROR) << "git_reference_next: " << GitError();
+        throw Exception();
+    }
+    ON_SCOPE_EXIT(&) { git_reference_free(ref); };
+    if (git_reference_type(ref) != GIT_REFERENCE_DIRECT) continue;
+    const git_oid* target = git_reference_target_peel(ref) ?: git_reference_target(ref);
+    if (!git_oid_equal(target, &oid)) continue;
+    const char* name = StripTag(git_reference_name(ref));
+    if (name && res < name) res = name;
+  }
 }
 
 void TagDb::ReadLooseTags() {
