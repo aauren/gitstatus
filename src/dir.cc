@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -40,7 +41,6 @@
 #include <iconv.h>
 #endif
 
-#include "bits.h"
 #include "check.h"
 #include "scope_guard.h"
 #include "string_cmp.h"
@@ -189,7 +189,7 @@ char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
   }
   if (!do_convert) return DirentDup(arena, ent, len);
 
-  size_t n = NextPow2(len + 2);
+  size_t n = std::bit_ceil(len + 2);
   while (true) {
     char* p = arena.Allocate<char>(n);
     std::optional<bool> converted = IConvTry(ent.d_name, len, p + 1, n - 1);

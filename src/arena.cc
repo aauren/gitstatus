@@ -18,16 +18,14 @@
 #include "arena.h"
 
 #include <algorithm>
+#include <bit>
 #include <type_traits>
 
-#include "bits.h"
 #include "check.h"
 
 namespace gitstatus {
 
 namespace {
-
-size_t Clamp(size_t min, size_t val, size_t max) { return std::min(max, std::max(min, val)); }
 
 static const uintptr_t kSingularity = reinterpret_cast<uintptr_t>(&kSingularity);
 
@@ -91,8 +89,8 @@ void Arena::AddBlock(size_t size, size_t alignment) {
     return;
   }
   if (size <= opt_.max_alloc_threshold) {
-    size =
-        std::max(size, Clamp(opt_.min_block_size, NextPow2(top_->size() + 1), opt_.max_block_size));
+    size = std::max(size, std::clamp(std::bit_ceil(top_->size() + 1), opt_.min_block_size,
+                                     opt_.max_block_size));
   }
 
   auto p = reinterpret_cast<uintptr_t>(::operator new(size));
