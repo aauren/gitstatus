@@ -108,7 +108,7 @@ using RemotePtr = std::unique_ptr<Remote, Remote::Free>;
 using PushRemotePtr = std::unique_ptr<PushRemote, PushRemote::Free>;
 
 RemotePtr GetRemote(git_repository* repo, const git_reference* local);
-PushRemotePtr GetPushRemote(git_repository* repo, const git_reference* local);
+PushRemotePtr GetPushRemote(git_repository* repo, git_config* cfg, const git_reference* local);
 
 }  // namespace gitstatus
 

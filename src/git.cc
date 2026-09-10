@@ -186,21 +186,58 @@ const char* LocalBranchName(const git_reference* ref) {
   throw Exception();
 }
 
+namespace {
+
+// Looks up the remote called `name`, or leaves the result null when the name is
+// "." (the local repository). Returns false if the remote doesn't exist.
+bool LookupRemote(git_remote** out, git_repository* repo, const std::string& name) {
+  *out = nullptr;
+  return name == "." || !git_remote_lookup(out, repo, name.c_str());
+}
+
+// Maps a branch name through the remote's fetch refspecs to the name of its
+// remote-tracking ref, the same way git_branch_upstream_name does for upstreams.
+bool TrackingRefName(std::string& out, const git_remote* remote, const char* refname) {
+  for (size_t i = 0, n = git_remote_refspec_count(remote); i != n; ++i) {
+    const git_refspec* spec = git_remote_get_refspec(remote, i);
+    if (git_refspec_direction(spec) != GIT_DIRECTION_FETCH) continue;
+    if (!git_refspec_src_matches(spec, refname)) continue;
+    git_buf buf = {};
+    ON_SCOPE_EXIT(&) { git_buf_dispose(&buf); };
+    if (git_refspec_transform(&buf, spec, refname)) return false;
+    out.assign(buf.ptr, buf.size);
+    return true;
+  }
+  return false;
+}
+
+}  // namespace
+
 RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
-  git_remote* remote;
+  const char* refname = git_reference_name(local);
+
   git_buf symref = {};
-  if (git_branch_remote(&remote, &symref, repo, git_reference_name(local))) return nullptr;
+  ON_SCOPE_EXIT(&) { git_buf_dispose(&symref); };
+  if (git_branch_upstream_name(&symref, repo, refname)) return nullptr;
+
+  git_buf remote_name = {};
+  ON_SCOPE_EXIT(&) { git_buf_dispose(&remote_name); };
+  if (git_branch_upstream_remote(&remote_name, repo, refname)) return nullptr;
+  std::string name(remote_name.ptr, remote_name.size);
+
+  git_remote* remote;
+  if (!LookupRemote(&remote, repo, name)) return nullptr;
   ON_SCOPE_EXIT(&) {
-    git_remote_free(remote);
-    git_buf_free(&symref);
+    if (remote) git_remote_free(remote);
   };
 
   git_reference* ref;
   if (git_reference_lookup(&ref, repo, symref.ptr)) return nullptr;
-  ON_SCOPE_EXIT(&) { if (ref) git_reference_free(ref); };
+  ON_SCOPE_EXIT(&) {
+    if (ref) git_reference_free(ref);
+  };
 
   const char* branch = nullptr;
-  std::string name = remote ? git_remote_name(remote) : ".";
   if (git_branch_name(&branch, ref)) {
     branch = "";
   } else if (remote) {
@@ -217,20 +254,35 @@ RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
   return RemotePtr(res.release());
 }
 
-PushRemotePtr GetPushRemote(git_repository* repo, const git_reference* local) {
+PushRemotePtr GetPushRemote(git_repository* repo, git_config* cfg, const git_reference* local) {
+  // Same resolution as `git push` minus the fallback to the upstream remote:
+  // branch.<name>.pushRemote, then remote.pushDefault. If neither is set there
+  // is no push remote as far as we're concerned.
+  if (!git_reference_is_branch(local)) return nullptr;
+  const char* refname = git_reference_name(local);
+  const char* val = nullptr;
+  std::string key = std::string("branch.") + git_reference_shorthand(local) + ".pushremote";
+  if (git_config_get_string(&val, cfg, key.c_str()) &&
+      git_config_get_string(&val, cfg, "remote.pushdefault")) {
+    return nullptr;
+  }
+  std::string name = val ?: "";
+  if (name.empty()) return nullptr;
+
   git_remote* remote;
-  git_buf symref = {};
-  if (git_branch_push_remote(&remote, &symref, repo, git_reference_name(local))) return nullptr;
+  if (!LookupRemote(&remote, repo, name)) return nullptr;
   ON_SCOPE_EXIT(&) {
-    git_remote_free(remote);
-    git_buf_free(&symref);
+    if (remote) git_remote_free(remote);
   };
 
-  git_reference* ref;
-  if (git_reference_lookup(&ref, repo, symref.ptr)) return nullptr;
-  ON_SCOPE_EXIT(&) { if (ref) git_reference_free(ref); };
+  std::string symref = refname;
+  if (remote && !TrackingRefName(symref, remote, refname)) return nullptr;
 
-  std::string name = remote ? git_remote_name(remote) : ".";
+  git_reference* ref;
+  if (git_reference_lookup(&ref, repo, symref.c_str())) return nullptr;
+  ON_SCOPE_EXIT(&) {
+    if (ref) git_reference_free(ref);
+  };
 
   auto res = std::make_unique<PushRemote>();
   res->name = std::move(name);

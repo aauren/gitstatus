@@ -148,7 +148,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(stats.num_staged_deleted);
 
   // Push remote or null.
-  PushRemotePtr push_remote = GetPushRemote(repo->repo(), head);
+  PushRemotePtr push_remote = GetPushRemote(repo->repo(), cfg, head);
 
   // Push remote name (e.g., "origin") or empty string if there is no push remote.
   resp.Print(push_remote ? push_remote->name : "");
