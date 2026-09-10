@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 
 #include <dirent.h>
@@ -97,9 +98,11 @@ void SortEntries<false>(char** begin, char** end) {
 
 bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
              bool case_sensitive) {
+  // The kernel's layout, which is 64-bit no matter what the libc calls ino_t
+  // and off_t (musl 1.2.5 dropped the *64_t spellings from _GNU_SOURCE)
   struct linux_dirent64 {
-    ino64_t d_ino;
-    off64_t d_off;
+    uint64_t d_ino;
+    int64_t d_off;
     unsigned short d_reclen;
     unsigned char d_type;
     char d_name[];
