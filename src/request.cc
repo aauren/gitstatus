@@ -94,7 +94,7 @@ bool RequestReader::ReadRequest(Request& req) {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(fd_, &fds);
-    struct timeval timeout = {.tv_sec = 1};
+    struct timeval timeout = {.tv_sec = 1, .tv_usec = 0};
 
     int n;
     CHECK((n = select(fd_ + 1, &fds, NULL, NULL, &timeout)) >= 0) << Errno();

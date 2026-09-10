@@ -10,7 +10,7 @@ namespace gitstatus {
 
 ThreadPool::ThreadPool(size_t num_threads) : num_inflight_(num_threads) {
   for (size_t i = 0; i != num_threads; ++i) {
-    threads_.emplace_back([=]() { Loop(i + 1); });
+    threads_.emplace_back([this, i]() { Loop(i + 1); });
   }
 }
 
@@ -34,7 +34,7 @@ void ThreadPool::Schedule(Time t, std::function<void()> f) {
   if (wake) wake->notify_one();
 }
 
-void ThreadPool::Loop(size_t tid) {
+void ThreadPool::Loop(size_t /* tid */) {
   auto Next = [&]() -> std::function<void()> {
     std::unique_lock<std::mutex> lock(mutex_);
     --num_inflight_;

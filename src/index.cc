@@ -142,9 +142,8 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& are
   }
 }
 
-std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
-                                  IndexDir* const* end, const RepoCaps& caps,
-                                  const ScanOpts& opts) {
+std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir* const* end,
+                                  const RepoCaps& caps, const ScanOpts& opts) {
   const Str<> str(caps.case_sensitive);
 
   Arena arena;
@@ -330,7 +329,6 @@ RepoCaps::RepoCaps(git_repository* repo, git_index* index) {
 Index::Index(git_repository* repo, git_index* index)
     : dirs_(&arena_),
       splits_(&arena_),
-      git_index_(index),
       root_dir_(git_repository_workdir(repo)),
       caps_(repo, index) {
   size_t total_weight = InitDirs(index);
@@ -439,7 +437,7 @@ std::vector<const char*> Index::GetDirtyCandidates(const ScanOpts& opts) {
       };
       try {
         std::vector<const char*> candidates =
-            ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, caps_, opts);
+            ScanDirs(root_fd, dirs_.data() + from, dirs_.data() + to, caps_, opts);
         if (!candidates.empty()) {
           std::unique_lock<std::mutex> lock(mutex);
           res.insert(res.end(), candidates.begin(), candidates.end());

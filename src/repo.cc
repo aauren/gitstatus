@@ -297,7 +297,8 @@ int Repo::OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>
 void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   if (paths.empty()) return;
 
-  git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
+  git_diff_options opt;
+  VERIFY(!git_diff_options_init(&opt, GIT_DIFF_OPTIONS_VERSION)) << GitError();
   opt.payload = this;
   opt.flags = GIT_DIFF_INCLUDE_TYPECHANGE_TREES | GIT_DIFF_SKIP_BINARY_CHECK |
               GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_EXEMPLARS;
@@ -310,8 +311,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   // Leave ignore_submodules unset so that libgit2 honours submodule.<name>.ignore
   // and diff.ignoreSubmodules the same way git status does, rather than forcing
   // "dirty" and disagreeing with it for submodules marked ignore=all.
-  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
-                      const char* matched_pathspec, void* payload) -> int {
+  opt.notify_cb = +[](const git_diff*, const git_diff_delta* delta, const char*,
+                      void* payload) -> int {
     if (delta->status == GIT_DELTA_CONFLICTED) return GIT_DIFF_DELTA_DO_NOT_INSERT;
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
@@ -362,11 +363,12 @@ void Repo::StartStagedScan(const git_oid* head) {
   git_tree* tree = nullptr;
   VERIFY(!git_commit_tree(&tree, commit)) << GitError();
 
-  git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
+  git_diff_options opt;
+  VERIFY(!git_diff_options_init(&opt, GIT_DIFF_OPTIONS_VERSION)) << GitError();
   opt.flags = GIT_DIFF_EXEMPLARS | GIT_DIFF_INCLUDE_TYPECHANGE_TREES;
   opt.payload = this;
-  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
-                      const char* matched_pathspec, void* payload) -> int {
+  opt.notify_cb = +[](const git_diff*, const git_diff_delta* delta, const char*,
+                      void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_CONFLICTED) {
@@ -516,7 +518,7 @@ std::future<std::string> Repo::GetTagName(const git_oid* target) {
   auto* promise = new std::promise<std::string>;
   std::future<std::string> res = promise->get_future();
 
-  GlobalThreadPool()->Schedule([=] {
+  GlobalThreadPool()->Schedule([this, promise, target] {
     ON_SCOPE_EXIT(&) { delete promise; };
     if (!target) {
       promise->set_value("");

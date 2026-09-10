@@ -96,7 +96,8 @@ void SortEntries<false>(char** begin, char** end) {
   std::sort(begin, end, StrLt<false>());
 }
 
-bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
+// precompose_unicode is a darwin-only concern, linux hands back whatever bytes are on disk
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool /* precompose_unicode */,
              bool case_sensitive) {
   // The kernel's layout, which is 64-bit no matter what the libc calls ino_t
   // and off_t (musl 1.2.5 dropped the *64_t spellings from _GNU_SOURCE)
@@ -204,7 +205,7 @@ char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
 
 #else  // __APPLE__
 
-char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
+char* DirenvConvert(Arena& arena, struct dirent& ent, bool /* do_convert */) {
   return DirentDup(arena, ent, std::strlen(ent.d_name));
 }
 

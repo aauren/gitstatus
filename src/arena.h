@@ -232,8 +232,8 @@ class ArenaAllocator {
 
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
-  pointer allocate(size_type n, const void* hint = nullptr) { return arena_.Allocate<T>(n); }
-  void deallocate(T* p, std::size_t n) {}
+  pointer allocate(size_type n, const void* = nullptr) { return arena_.Allocate<T>(n); }
+  void deallocate(T*, std::size_t) {}
   size_type max_size() const { return std::numeric_limits<size_type>::max() / sizeof(value_type); }
 
   template <class U, class... Args>

@@ -10,7 +10,7 @@ VERSION ?= $(shell . ./build.info && printf "%s" "$$gitstatus_version")
 #
 # Sized delete is implemented as __ZdlPvm in /usr/lib/libc++.1.dylib but this symbol is
 # missing in macOS prior to 10.13.
-CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -DGITSTATUS_VERSION=$(VERSION) # -Wall -g -fsanitize=thread
+CXXFLAGS += -std=c++20 -funsigned-char -O3 -DNDEBUG -DGITSTATUS_VERSION=$(VERSION) # -g -fsanitize=thread
 LDFLAGS += -pthread # -fsanitize=thread
 LDLIBS += -lgit2 # -lprofiler -lunwind
 
@@ -29,7 +29,7 @@ $(OBJDIR):
 
 $(OBJDIR)/%.o: src/%.cc Makefile build.info | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >$(OBJDIR)/$*.dep
-	$(CXX) $(CXXFLAGS) -Wall -c -o $@ src/$*.cc
+	$(CXX) $(CXXFLAGS) -Wall -Wextra -c -o $@ src/$*.cc
 
 clean:
 	rm -rf -- $(OBJDIR)

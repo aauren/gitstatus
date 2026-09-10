@@ -130,7 +130,7 @@ size_t CountRange(git_repository* repo, const std::string& range) {
 
 size_t NumStashes(git_repository* repo) {
   size_t res = 0;
-  auto* cb = +[](size_t index, const char* message, const git_oid* stash_id, void* payload) {
+  auto* cb = +[](size_t, const char*, const git_oid*, void* payload) {
     ++*static_cast<size_t*>(payload);
     return 0;
   };

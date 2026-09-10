@@ -32,8 +32,8 @@ constexpr char kUnreadable = '?';
 
 void SafePrint(std::ostream& strm, StringView s) {
   for (size_t i = 0; i != s.len; ++i) {
-    char c = s.ptr[i];
-    strm << (c > 127 || std::isprint(c) ? c : kUnreadable);
+    unsigned char c = s.ptr[i];
+    strm << (c > 127 || std::isprint(c) ? static_cast<char>(c) : kUnreadable);
   }
 }
 

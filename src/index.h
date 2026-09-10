@@ -74,7 +74,6 @@ class Index {
   Arena arena_;
   WithArena<std::vector<IndexDir*>> dirs_;
   WithArena<std::vector<size_t>> splits_;
-  git_index* git_index_;
   const char* root_dir_;
   RepoCaps caps_;
 };
