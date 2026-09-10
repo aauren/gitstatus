@@ -148,8 +148,11 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
   // failing the whole request, which the plugins render as "not a repo", we
   // answer as if the request had asked us to skip the index entirely.
   if (git_index_) {
-    int new_index;
-    if (git_index_read_ex(git_index_, index_read_failed_, &new_index)) {
+    // git_index_read only re-parses the file when its trailing checksum differs
+    // from the one libgit2 last parsed, so comparing that before and after tells
+    // us whether the entries (and every pointer we hold into them) were replaced.
+    const git_oid old_checksum = *git_index_checksum(git_index_);
+    if (git_index_read(git_index_, index_read_failed_)) {
       LOG(WARN) << "Cannot read index, reporting it as disabled: " << GitError();
       // A failed read leaves the entries cleared but the checksum libgit2 uses
       // to detect changes intact, so if the index is later rewritten with the
@@ -160,6 +163,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       index_.reset();
       return {.disabled = true};
     }
+    const bool new_index =
+        index_read_failed_ || !git_oid_equal(&old_checksum, git_index_checksum(git_index_));
     index_read_failed_ = false;
     if (new_index) {
       head_ = {};
