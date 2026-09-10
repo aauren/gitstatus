@@ -45,12 +45,15 @@ namespace gitstatus {
 
 namespace {
 
-void CommonDir(Str<> str, const char* a, const char* b, size_t* dir_len, size_t* dir_depth) {
+// Length and depth of the longest directory prefix shared by dir (which is empty or ends in
+// '/') and the null-terminated path.
+void CommonDir(Str<> str, std::string_view dir, const char* path, size_t* dir_len,
+               size_t* dir_depth) {
   *dir_len = 0;
   *dir_depth = 0;
-  for (size_t i = 1; str.Eq(*a, *b) && *a; ++i, ++a, ++b) {
-    if (*a == '/') {
-      *dir_len = i;
+  for (size_t i = 0; i != dir.size() && str.Eq(dir[i], path[i]); ++i) {
+    if (dir[i] == '/') {
+      *dir_len = i + 1;
       ++*dir_depth;
     }
   }
@@ -107,19 +110,19 @@ int OpenDir(int parent_fd, const char* name) {
   return openat(parent_fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 }
 
-void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& arena) {
+void OpenTail(int* fds, size_t nfds, int root_fd, std::string_view dirname, Arena& arena) {
   CHECK(fds && nfds && root_fd >= 0);
   std::fill(fds, fds + nfds, -1);
-  if (!dirname.len) return;
-  CHECK(dirname.len > 1);
-  CHECK(dirname.ptr[0] != '/');
-  CHECK(dirname.ptr[dirname.len - 1] == '/');
+  if (dirname.empty()) return;
+  CHECK(dirname.size() > 1);
+  CHECK(dirname.front() != '/');
+  CHECK(dirname.back() == '/');
 
-  char* begin = arena.StrDup(dirname.ptr, dirname.len - 1);
+  char* begin = arena.StrDup(dirname.data(), dirname.size() - 1);
   WithArena<std::vector<const char*>> subdirs(&arena);
   subdirs.reserve(nfds + 1);
 
-  for (char* sep = begin + dirname.len - 1; subdirs.size() < nfds;) {
+  for (char* sep = begin + dirname.size() - 1; subdirs.size() < nfds;) {
     sep = FindLast(begin, sep, '/');
     if (sep == begin) break;
     *sep = 0;
@@ -172,19 +175,19 @@ std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir*
   for (IndexDir* const* it = begin; it != end; ++it) {
     IndexDir& dir = **it;
 
-    auto Basename = [&](const git_index_entry* e) { return e->path + dir.path.len; };
+    auto Basename = [&](const git_index_entry* e) { return e->path + dir.path.size(); };
 
-    auto AddUnmached = [&](StringView basename) {
-      if (!basename.len) {
+    auto AddUnmached = [&](std::string_view basename) {
+      if (basename.empty()) {
         dir.st = {};
         dir.unmatched.clear();
         dir.arena.Reuse();
-      } else if (str.Eq(basename, StringView(".git/"))) {
+      } else if (str.Eq(basename, std::string_view(".git/"))) {
         return;
       }
       char* path = dir.arena.StrCat(dir.path, basename);
       dir.unmatched.push_back(path);
-      AddCandidate(basename.len ? "new" : "unreadable", path);
+      AddCandidate(basename.empty() ? "unreadable" : "new", path);
     };
 
     auto StatFiles = [&]() {
@@ -201,17 +204,17 @@ std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir*
     ssize_t d = 0;
     if ((it == begin || (d = it[-1]->depth + 1 - dir.depth) < kDirStackSize) && dir_fd[d] >= 0) {
       CHECK(d >= 0);
-      int fd = OpenDir(dir_fd[d], arena.StrDup(dir.basename.ptr, dir.basename.len));
+      int fd = OpenDir(dir_fd[d], arena.StrDup(dir.basename));
       for (ssize_t i = 0; i != d; ++i) Close(dir_fd[i]);
       std::rotate(dir_fd, dir_fd + (d ? d : kDirStackSize) - 1, dir_fd + kDirStackSize);
       Close(*dir_fd);
       *dir_fd = fd;
     } else {
       CloseAll();
-      if (dir.path.len) {
-        CHECK(dir.path.ptr[0] != '/');
-        CHECK(dir.path.ptr[dir.path.len - 1] == '/');
-        *dir_fd = OpenDir(root_fd, arena.StrDup(dir.path.ptr, dir.path.len - 1));
+      if (!dir.path.empty()) {
+        CHECK(dir.path.front() != '/');
+        CHECK(dir.path.back() == '/');
+        *dir_fd = OpenDir(root_fd, arena.StrDup(dir.path.data(), dir.path.size() - 1));
       } else {
         VERIFY((*dir_fd = dup(root_fd)) >= 0) << Errno();
       }
@@ -252,8 +255,8 @@ std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir*
 
     const git_index_entry* const* file = dir.files.data();
     const git_index_entry* const* file_end = file + dir.files.size();
-    const StringView* subdir = dir.subdirs.data();
-    const StringView* subdir_end = subdir + dir.subdirs.size();
+    const std::string_view* subdir = dir.subdirs.data();
+    const std::string_view* subdir_end = subdir + dir.subdirs.size();
 
     for (char* entry : entries) {
       bool matched = false;
@@ -290,9 +293,12 @@ std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir*
       }
 
       if (!matched) {
-        StringView basename(entry);
-        // Overwrites the terminator, which is fine since only this StringView reads it from here
-        if (DirEntryType(entry) == DT_DIR) entry[basename.len++] = '/';
+        std::string_view basename(entry);
+        // Overwrites the terminator, which is fine since only this view reads it from here
+        if (DirEntryType(entry) == DT_DIR) {
+          entry[basename.size()] = '/';
+          basename = std::string_view(entry, basename.size() + 1);
+        }
         AddUnmached(basename);
       }
     }
@@ -359,20 +365,20 @@ size_t Index::InitDirs(git_index* index) {
     const git_index_entry* entry = git_index_get_byindex(index, i);
     IndexDir* prev = stack.top();
     size_t common_len, common_depth;
-    CommonDir(str, prev->path.ptr, entry->path, &common_len, &common_depth);
+    CommonDir(str, prev->path, entry->path, &common_len, &common_depth);
     CHECK(common_depth <= prev->depth);
 
     for (size_t i = common_depth; i != prev->depth; ++i) PopDir();
 
     for (const char* p = entry->path + common_len; (p = std::strchr(p, '/')); ++p) {
       IndexDir* top = stack.top();
-      StringView subdir(entry->path + top->path.len, p);
+      std::string_view subdir(entry->path + top->path.size(), p);
       top->subdirs.push_back(subdir);
       IndexDir* dir = arena_.DirectInit<IndexDir>(&arena_);
-      dir->path = StringView(entry->path, p - entry->path + 1);
+      dir->path = std::string_view(entry->path, p - entry->path + 1);
       dir->basename = subdir;
       dir->depth = stack.size();
-      CHECK(dir->path.ptr[dir->path.len - 1] == '/');
+      CHECK(dir->path.back() == '/');
       stack.push(dir);
     }
 

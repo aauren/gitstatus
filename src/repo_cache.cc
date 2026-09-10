@@ -23,7 +23,6 @@
 #include "git.h"
 #include "print.h"
 #include "scope_guard.h"
-#include "string_view.h"
 
 namespace gitstatus {
 

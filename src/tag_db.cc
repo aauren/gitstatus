@@ -37,7 +37,6 @@
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
-#include "string_view.h"
 #include "thread_pool.h"
 #include "timer.h"
 
@@ -241,13 +240,13 @@ bool TagDb::ReadLooseTagsDir(int dir_fd, const char* prefix) {
       if (fd >= 0) {
         ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
         nested = true;
-        ReadLooseTagsDir(fd, loose_arena_.StrCat(StringView(prefix), StringView(entry), "/"));
+        ReadLooseTagsDir(fd, loose_arena_.StrCat(prefix, entry, "/"));
         continue;
       }
       if (errno != ENOTDIR) continue;
     }
     loose_tags_.push_back(
-        *prefix ? loose_arena_.StrCat(StringView(prefix), StringView(entry)) : entry);
+        *prefix ? loose_arena_.StrCat(prefix, entry) : entry);
   }
   return nested;
 }

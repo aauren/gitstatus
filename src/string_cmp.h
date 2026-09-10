@@ -24,27 +24,27 @@
 #include <cctype>
 #include <cstddef>
 #include <cstring>
-
-#include "string_view.h"
+#include <string_view>
 
 namespace gitstatus {
 
-// WARNING: These routines assume no embedded null characters in StringView. Violations cause UB.
+// WARNING: These routines assume no embedded null characters in std::string_view. Violations
+// cause UB.
 
 template <int kCaseSensitive = -1>
 struct StrCmp;
 
 template <>
 struct StrCmp<0> {
-  int operator()(StringView x, StringView y) const {
-    size_t n = std::min(x.len, y.len);
-    int cmp = strncasecmp(x.ptr, y.ptr, n);
+  int operator()(std::string_view x, std::string_view y) const {
+    size_t n = std::min(x.size(), y.size());
+    int cmp = n ? strncasecmp(x.data(), y.data(), n) : 0;
     if (cmp) return cmp;
-    return static_cast<ssize_t>(x.len) - static_cast<ssize_t>(y.len);
+    return static_cast<ssize_t>(x.size()) - static_cast<ssize_t>(y.size());
   }
 
-  int operator()(StringView x, const char* y) const {
-    for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+  int operator()(std::string_view x, const char* y) const {
+    for (const char *p = x.data(), *e = p + x.size(); p != e; ++p, ++y) {
       if (int cmp = std::tolower(*p) - std::tolower(*y)) return cmp;
     }
     return 0 - *y;
@@ -52,20 +52,20 @@ struct StrCmp<0> {
 
   int operator()(char x, char y) const { return std::tolower(x) - std::tolower(y); }
   int operator()(const char* x, const char* y) const { return strcasecmp(x, y); }
-  int operator()(const char* x, StringView y) const { return -operator()(y, x); }
+  int operator()(const char* x, std::string_view y) const { return -operator()(y, x); }
 };
 
 template <>
 struct StrCmp<1> {
-  int operator()(StringView x, StringView y) const {
-    size_t n = std::min(x.len, y.len);
-    int cmp = std::memcmp(x.ptr, y.ptr, n);
+  int operator()(std::string_view x, std::string_view y) const {
+    size_t n = std::min(x.size(), y.size());
+    int cmp = n ? std::memcmp(x.data(), y.data(), n) : 0;
     if (cmp) return cmp;
-    return static_cast<ssize_t>(x.len) - static_cast<ssize_t>(y.len);
+    return static_cast<ssize_t>(x.size()) - static_cast<ssize_t>(y.size());
   }
 
-  int operator()(StringView x, const char* y) const {
-    for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+  int operator()(std::string_view x, const char* y) const {
+    for (const char *p = x.data(), *e = p + x.size(); p != e; ++p, ++y) {
       if (int cmp = *p - *y) return cmp;
     }
     return 0 - *y;
@@ -73,7 +73,7 @@ struct StrCmp<1> {
 
   int operator()(char x, char y) const { return x - y; }
   int operator()(const char* x, const char* y) const { return std::strcmp(x, y); }
-  int operator()(const char* x, StringView y) const { return -operator()(y, x); }
+  int operator()(const char* x, std::string_view y) const { return -operator()(y, x); }
 };
 
 template <>
@@ -107,8 +107,8 @@ struct StrEq : private StrCmp<kCaseSensitive> {
     return StrCmp<kCaseSensitive>::operator()(x, y) == 0;
   }
 
-  bool operator()(const StringView& x, const StringView& y) const {
-    return x.len == y.len && StrCmp<kCaseSensitive>::operator()(x, y) == 0;
+  bool operator()(const std::string_view& x, const std::string_view& y) const {
+    return x.size() == y.size() && StrCmp<kCaseSensitive>::operator()(x, y) == 0;
   }
 };
 

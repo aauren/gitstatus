@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <future>
 #include <string>
+#include <string_view>
 
 #include <git2.h>
 
@@ -33,6 +34,7 @@
 #include "request.h"
 #include "response.h"
 #include "scope_guard.h"
+#include "strings.h"
 #include "thread_pool.h"
 #include "timer.h"
 
@@ -81,9 +83,9 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   };
 
   // Repository working directory. Absolute; no trailing slash. E.g., "/home/romka/gitstatus".
-  StringView workdir(git_repository_workdir(repo->repo()));
-  if (workdir.len == 0) return;
-  if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
+  std::string_view workdir = CStrView(git_repository_workdir(repo->repo()));
+  if (workdir.empty()) return;
+  if (workdir.size() > 1 && workdir.back() == '/') workdir.remove_suffix(1);
   resp.Print(workdir);
 
   // Revision. 40 hex digits (64 in a SHA256 repo) or an empty string for empty repo.

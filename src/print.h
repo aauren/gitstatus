@@ -20,16 +20,17 @@
 
 #include <sys/stat.h>
 
+#include <cstring>
 #include <iomanip>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <git2.h>
 
-#include "string_view.h"
 #include "strings.h"
 
 namespace gitstatus {
@@ -50,8 +51,8 @@ std::ostream& operator<<(std::ostream& strm, const Printable<T>& p) {
   return strm << p.value;
 }
 
-inline std::ostream& operator<<(std::ostream& strm, const Printable<StringView>& p) {
-  Quote(strm, p.value.ptr, p.value.ptr + p.value.len);
+inline std::ostream& operator<<(std::ostream& strm, const Printable<std::string_view>& p) {
+  Quote(strm, p.value.data(), p.value.data() + p.value.size());
   return strm;
 }
 

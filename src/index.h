@@ -24,11 +24,11 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "arena.h"
 #include "options.h"
-#include "string_view.h"
 #include "tribool.h"
 
 namespace gitstatus {
@@ -50,12 +50,12 @@ struct ScanOpts {
 struct IndexDir {
   explicit IndexDir(Arena* arena) : files(arena), subdirs(arena) {}
 
-  StringView path;
-  StringView basename;
+  std::string_view path;
+  std::string_view basename;
   size_t depth = 0;
   struct stat st = {};
   WithArena<std::vector<const git_index_entry*>> files;
-  WithArena<std::vector<StringView>> subdirs;
+  WithArena<std::vector<std::string_view>> subdirs;
 
   Arena arena;
   std::vector<const char*> unmatched;

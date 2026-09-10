@@ -21,6 +21,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 #include <utility>
 
 #include <fcntl.h>
@@ -32,6 +33,7 @@
 #include "check.h"
 #include "print.h"
 #include "scope_guard.h"
+#include "strings.h"
 
 namespace gitstatus {
 
@@ -42,7 +44,7 @@ const char* GitError() {
 
 std::string RepoState(git_repository* repo) {
   Arena arena;
-  StringView gitdir(git_repository_path(repo));
+  std::string_view gitdir = CStrView(git_repository_path(repo));
 
   // These names mostly match gitaction in vcs_info:
   // https://github.com/zsh-users/zsh/blob/master/Functions/VCS_Info/Backends/VCS_INFO_get_data_git.
@@ -76,14 +78,14 @@ std::string RepoState(git_repository* repo) {
     return "action";
   };
 
-  auto DirExists = [&](StringView name) {
+  auto DirExists = [&](std::string_view name) {
     int fd = open(arena.StrCat(gitdir, "/", name), O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) return false;
     CHECK(!close(fd)) << Errno();
     return true;
   };
 
-  auto ReadFile = [&](StringView name) {
+  auto ReadFile = [&](std::string_view name) {
     std::ifstream strm(arena.StrCat(gitdir, "/", name));
     std::string res;
     strm >> res;

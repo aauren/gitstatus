@@ -94,10 +94,10 @@ const char* DeltaStr(git_delta_t t) {
 
 }  // namespace
 
-bool Repo::Shard::Contains(Str<> str, StringView path) const {
+bool Repo::Shard::Contains(Str<> str, std::string_view path) const {
   if (str.Lt(path, start_s)) return false;
   if (end_s.empty()) return true;
-  path.len = std::min(path.len, end_s.size());
+  path = path.substr(0, end_s.size());
   return !str.Lt(end_s, path);
 }
 
@@ -333,8 +333,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     opt.range_end = *p;
     opt.pathspec.strings = const_cast<char**>(&*p);
     opt.pathspec.count = 1;
-    while (!shard->Contains(str, StringView(*p))) ++shard;
-    while (++p != paths.end() && shard->Contains(str, StringView(*p))) {
+    while (!shard->Contains(str, *p)) ++shard;
+    while (++p != paths.end() && shard->Contains(str, *p)) {
       opt.range_end = *p;
       ++opt.pathspec.count;
     }

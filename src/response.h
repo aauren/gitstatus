@@ -22,8 +22,9 @@
 #include <cstdint>
 #include <sstream>
 #include <string>
+#include <string_view>
 
-#include "string_view.h"
+#include "strings.h"
 
 namespace gitstatus {
 
@@ -34,8 +35,8 @@ class ResponseWriter {
   ~ResponseWriter();
 
   void Print(ssize_t val);
-  void Print(StringView val);
-  void Print(const char* val) { Print(StringView(val)); }
+  void Print(std::string_view val);
+  void Print(const char* val) { Print(CStrView(val)); }
 
   void Dump(const char* log);
 

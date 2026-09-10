@@ -19,8 +19,13 @@
 #define ROMKATV_GITSTATUS_STRINGS_H_
 
 #include <ostream>
+#include <string_view>
 
 namespace gitstatus {
+
+// std::string_view(nullptr) is UB, and libgit2 hands back NULL for things like
+// the workdir of a bare repo, so this is the spelling for C strings we don't own
+inline std::string_view CStrView(const char* s) { return s ? std::string_view(s) : std::string_view(); }
 
 // If the pointers are null, prints nothing.
 //
@@ -34,4 +39,4 @@ void Quote(std::ostream& strm, const char* begin, const char* end);
 
 }  // namespace gitstatus
 
-#endif  // ROMKATV_GITSTATUS_STRING_VIEW_H_
+#endif  // ROMKATV_GITSTATUS_STRINGS_H_

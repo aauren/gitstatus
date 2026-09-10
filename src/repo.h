@@ -80,7 +80,7 @@ class Repo {
 
  private:
   struct Shard {
-    bool Contains(Str<> str, StringView path) const;
+    bool Contains(Str<> str, std::string_view path) const;
     std::string start_s;
     std::string end_s;
     size_t start_i;

@@ -24,11 +24,11 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
 #include "check.h"
-#include "string_view.h"
 
 namespace gitstatus {
 
@@ -125,20 +125,20 @@ class Arena {
     return res;
   }
 
-  // Guarantees: !StrDup(s)[s.len].
-  inline char* StrDup(StringView s) {
-    return StrDup(s.ptr, s.len);
-  }
+  // Guarantees: !StrDup(s)[s.size()].
+  inline char* StrDup(std::string_view s) { return StrDup(s.data(), s.size()); }
 
   template <class... Ts>
   inline char* StrCat(const Ts&... ts) {
-    return [&](std::initializer_list<StringView> ss) {
+    return [&](std::initializer_list<std::string_view> ss) {
       size_t len = 0;
-      for (StringView s : ss) len += s.len;
+      for (std::string_view s : ss) len += s.size();
       char* p = Allocate<char>(len + 1);
-      for (StringView s : ss) {
-        std::memcpy(p, s.ptr, s.len);
-        p += s.len;
+      for (std::string_view s : ss) {
+        // A default-constructed view has a null data(), which memcpy must never see
+        if (s.empty()) continue;
+        std::memcpy(p, s.data(), s.size());
+        p += s.size();
       }
       *p = 0;
       return p - len;
