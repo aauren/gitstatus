@@ -170,7 +170,7 @@ Tribool IConvTry(char* inp, size_t ins, char* outp, size_t outs) {
   }
   ON_SCOPE_EXIT(&) { CHECK(iconv_close(ic) == 0) << Errno(); };
   --outs;
-  if (iconv(ic, &inp, &ins, &outp, &outs) >= 0) {
+  if (iconv(ic, &inp, &ins, &outp, &outs) != static_cast<size_t>(-1)) {
     *outp = 0;
     return Tribool::kTrue;
   }
