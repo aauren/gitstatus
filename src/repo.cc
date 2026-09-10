@@ -313,7 +313,7 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     }
   };
 
-  const Str<> str(git_index_is_case_sensitive(git_index_));
+  const Str<> str(IndexCaseSensitive(git_index_));
   auto shard = shards_.begin();
   for (auto p = paths.begin(); p != paths.end();) {
     opt.range_start = *p;
@@ -401,7 +401,7 @@ void Repo::StartStagedScan(const git_oid* head) {
 void Repo::UpdateShards() {
   constexpr size_t kEntriesPerShard = 512;
 
-  const Str<> str(git_index_is_case_sensitive(git_index_));
+  const Str<> str(IndexCaseSensitive(git_index_));
   size_t index_size = git_index_entrycount(git_index_);
   ON_SCOPE_EXIT(&) {
     LOG(INFO) << "Splitting " << index_size << " object(s) into " << shards_.size() << " shard(s)";

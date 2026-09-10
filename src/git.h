@@ -48,6 +48,11 @@ git_reference* Head(git_repository* repo);
 // Returns the name of the local branch, or an empty string.
 const char* LocalBranchName(const git_reference* ref);
 
+// Whether index paths compare case-sensitively (core.ignoreCase unset or false).
+inline bool IndexCaseSensitive(const git_index* index) {
+  return !(git_index_caps(index) & GIT_INDEX_CAPABILITY_IGNORE_CASE);
+}
+
 struct CommitMessage {
   // Can be empty, meaning "UTF-8".
   std::string encoding;
