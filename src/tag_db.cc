@@ -130,7 +130,10 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
     if (res < tag && TagHasTarget(ref.c_str(), &oid)) res = tag;
   }
 
-  if ((std::unique_lock<std::mutex>(mutex_), id2name_dirty_)) {
+  // Hold the lock for the whole lookup so that neither branch can overlap with
+  // the background sort of id2name_ scheduled by ParsePack()
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (id2name_dirty_) {
     for (auto it = name2id_.rbegin(); it != name2id_.rend(); ++it) {
       if (!memcmp((*it)->id.id, oid.id, GIT_OID_RAWSZ) && !IsLooseTag((*it)->name)) {
         if (res < (*it)->name) res = (*it)->name;
