@@ -311,8 +311,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   // Leave ignore_submodules unset so that libgit2 honours submodule.<name>.ignore
   // and diff.ignoreSubmodules the same way git status does, rather than forcing
   // "dirty" and disagreeing with it for submodules marked ignore=all.
-  opt.notify_cb = +[](const git_diff*, const git_diff_delta* delta, const char*,
-                      void* payload) -> int {
+  opt.notify_cb =
+      +[](const git_diff*, const git_diff_delta* delta, const char*, void* payload) -> int {
     if (delta->status == GIT_DELTA_CONFLICTED) return GIT_DIFF_DELTA_DO_NOT_INSERT;
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
@@ -367,8 +367,8 @@ void Repo::StartStagedScan(const git_oid* head) {
   VERIFY(!git_diff_options_init(&opt, GIT_DIFF_OPTIONS_VERSION)) << GitError();
   opt.flags = GIT_DIFF_EXEMPLARS | GIT_DIFF_INCLUDE_TYPECHANGE_TREES;
   opt.payload = this;
-  opt.notify_cb = +[](const git_diff*, const git_diff_delta* delta, const char*,
-                      void* payload) -> int {
+  opt.notify_cb =
+      +[](const git_diff*, const git_diff_delta* delta, const char*, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_CONFLICTED) {
