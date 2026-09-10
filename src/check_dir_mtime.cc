@@ -61,7 +61,7 @@ void RemoveStaleDirs(const char* root_dir) {
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
 
   Arena arena;
-  std::vector<char*> entries;
+  std::vector<DirEntry> entries;
   const std::time_t now = std::time(nullptr);
   if (!ListDir(dir_fd, arena, entries,
                /* precompose_unicode = */ false,
@@ -72,7 +72,8 @@ void RemoveStaleDirs(const char* root_dir) {
   std::string path = root_dir;
   const size_t root_dir_len = path.size();
 
-  for (const char* entry : entries) {
+  for (const DirEntry& ent : entries) {
+    const char* entry = ent.name;
     if (std::strlen(entry) < std::strlen(kDirPrefix)) continue;
     if (std::memcmp(entry, kDirPrefix, std::strlen(kDirPrefix))) continue;
 

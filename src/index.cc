@@ -149,7 +149,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
 
   Arena arena;
   std::vector<const char*> dirty_candidates;
-  std::vector<char*> entries;
+  std::vector<DirEntry> entries;
   entries.reserve(128);
 
   auto AddCandidate = [&](const char* kind, const char* path) {
@@ -256,16 +256,16 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
     const StringView* subdir = dir.subdirs.data();
     const StringView* subdir_end = subdir + dir.subdirs.size();
 
-    for (char* entry : entries) {
+    for (const DirEntry& entry : entries) {
       bool matched = false;
 
       for (; file != file_end; ++file) {
-        int cmp = str.Cmp(Basename(*file), entry);
+        int cmp = str.Cmp(Basename(*file), entry.name);
         if (cmp < 0) {
           AddCandidate("deleted", (*file)->path);
         } else if (cmp == 0) {
           struct stat st;
-          if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
+          if (fstatat(*dir_fd, entry.name, &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("unreadable", (*file)->path);
           } else if (IsModified(*file, st, caps)) {
             AddCandidate(nullptr, (*file)->path);
@@ -281,7 +281,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       if (matched) continue;
 
       for (; subdir != subdir_end; ++subdir) {
-        int cmp = str.Cmp(*subdir, entry);
+        int cmp = str.Cmp(*subdir, entry.name);
         if (cmp > 0) break;
         if (cmp == 0) {
           matched = true;
@@ -291,8 +291,9 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       }
 
       if (!matched) {
-        StringView basename(entry);
-        if (entry[-1] == DT_DIR) entry[basename.len++] = '/';
+        StringView basename(entry.name);
+        // Overwrites the terminator, which is fine since only this StringView reads it from here
+        if (entry.type == DT_DIR) entry.name[basename.len++] = '/';
         AddUnmached(basename);
       }
     }

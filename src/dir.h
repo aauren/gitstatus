@@ -25,11 +25,17 @@
 
 namespace gitstatus {
 
+struct DirEntry {
+  // Null-terminated, points into the arena.
+  char* name;
+  // d_type as reported by the OS. Can be DT_UNKNOWN on filesystems that don't fill it in.
+  unsigned char type;
+};
+
 // On error, leaves entries unchanged and returns false. Does not throw.
 //
-// On success, appends names of files from the specified directory to entries and returns true.
-// Every appended entry is a null-terminated string. At -1 offset is its d_type. All elements
-// point into the arena. They are sorted either by strcmp or strcasecmp depending on case_sensitive.
+// On success, appends entries for the specified directory (minus "." and "..") and returns
+// true. They are sorted by name, either by strcmp or strcasecmp depending on case_sensitive.
 //
 // Does not close dir_fd.
 //
@@ -42,7 +48,7 @@ namespace gitstatus {
 // done at the end with a generic StrSort() call.
 //
 // For best results, reuse the arena and vector for multiple calls to avoid heap allocations.
-bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
+bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool precompose_unicode,
              bool case_sensitive);
 
 }  // namespace gitstatus

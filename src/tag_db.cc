@@ -116,7 +116,8 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
 
   std::string ref = "refs/tags/";
   size_t prefix_len = ref.size();
-  for (const char* tag : loose_tags_) {
+  for (const DirEntry& ent : loose_tags_) {
+    const char* tag = ent.name;
     ref.resize(prefix_len);
     ref += tag;
     if (res < tag && TagHasTarget(ref.c_str(), &oid)) res = tag;
@@ -285,8 +286,11 @@ void TagDb::Wait() {
 }
 
 bool TagDb::IsLooseTag(const char* name) const {
-  return std::binary_search(loose_tags_.begin(), loose_tags_.end(), name,
-                            [](const char* a, const char* b) { return std::strcmp(a, b) < 0; });
+  struct Lt {
+    bool operator()(const DirEntry& a, const char* b) const { return std::strcmp(a.name, b) < 0; }
+    bool operator()(const char* a, const DirEntry& b) const { return std::strcmp(a, b.name) < 0; }
+  };
+  return std::binary_search(loose_tags_.begin(), loose_tags_.end(), name, Lt());
 }
 
 bool TagDb::TagHasTarget(const char* name, const git_oid* target) const {
