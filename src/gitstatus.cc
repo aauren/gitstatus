@@ -53,10 +53,11 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Repo* repo = cache.Open(req.dir, req.from_dotgit);
   if (!repo) return;
 
+  // A snapshot re-reads whichever config files changed on disk and gives us a
+  // consistent view for the rest of the request.
   git_config* cfg;
-  VERIFY(!git_repository_config(&cfg, repo->repo())) << GitError();
+  VERIFY(!git_repository_config_snapshot(&cfg, repo->repo())) << GitError();
   ON_SCOPE_EXIT(=) { git_config_free(cfg); };
-  VERIFY(!git_config_refresh(cfg)) << GitError();
 
   // Symbolic reference if and only if the repo is empty.
   git_reference* head = Head(repo->repo());
