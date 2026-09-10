@@ -151,7 +151,9 @@ void TagDb::ReadLooseTags() {
   loose_tags_.clear();
   loose_arena_.Reuse();
 
-  std::string dirname = git_repository_path(repo_) + "refs/tags"s;
+  // Tags are shared refs, so in a linked worktree they live in the common gitdir
+  // rather than the per-worktree one that git_repository_path() returns
+  std::string dirname = git_repository_commondir(repo_) + "refs/tags"s;
   int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return;
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
@@ -175,7 +177,7 @@ void TagDb::UpdatePack() {
     std::memset(&pack_stat_, 0, sizeof(pack_stat_));
   };
 
-  std::string pack_path = git_repository_path(repo_) + "packed-refs"s;
+  std::string pack_path = git_repository_commondir(repo_) + "packed-refs"s;
   struct stat st;
   if (stat(pack_path.c_str(), &st)) {
     Reset();
