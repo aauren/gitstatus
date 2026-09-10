@@ -230,13 +230,15 @@ std::vector<const char*> ScanDirs(int root_fd, IndexDir* const* begin, IndexDir*
       continue;
     }
 
-    if (opts.untracked_cache != Tribool::kFalse) {
+    // nullopt means we haven't yet learned whether the fs updates dir mtimes, so we stat the
+    // dir but can't trust the cached stat
+    if (opts.untracked_cache.value_or(true)) {
       struct stat st;
       if (fstat(*dir_fd, &st)) {
         AddUnmached("");
         continue;
       }
-      if (opts.untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
+      if (opts.untracked_cache == true && StatEq(st, dir.st)) {
         StatFiles();
         for (const char* path : dir.unmatched) AddCandidate("new", path);
         continue;

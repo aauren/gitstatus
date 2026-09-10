@@ -22,6 +22,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -43,7 +44,6 @@
 #include "check.h"
 #include "scope_guard.h"
 #include "string_cmp.h"
-#include "tribool.h"
 
 namespace gitstatus {
 
@@ -158,23 +158,25 @@ char* DirentDup(Arena& arena, const struct dirent& ent, size_t len) {
 
 std::atomic<bool> g_iconv_error(true);
 
-Tribool IConvTry(char* inp, size_t ins, char* outp, size_t outs) {
-  if (outs == 0) return Tribool::kUnknown;
+// nullopt means the output buffer was too small, try again with a bigger one
+std::optional<bool> IConvTry(char* inp, size_t ins, char* outp, size_t outs) {
+  if (outs == 0) return std::nullopt;
   iconv_t ic = iconv_open("UTF-8", "UTF-8-MAC");
   if (ic == (iconv_t)-1) {
     if (g_iconv_error.load(std::memory_order_relaxed) &&
         g_iconv_error.exchange(false, std::memory_order_relaxed)) {
       LOG(ERROR) << "iconv_open(\"UTF-8\", \"UTF-8-MAC\") failed";
     }
-    return Tribool::kFalse;
+    return false;
   }
   ON_SCOPE_EXIT(&) { CHECK(iconv_close(ic) == 0) << Errno(); };
   --outs;
   if (iconv(ic, &inp, &ins, &outp, &outs) != static_cast<size_t>(-1)) {
     *outp = 0;
-    return Tribool::kTrue;
+    return true;
   }
-  return errno == E2BIG ? Tribool::kUnknown : Tribool::kFalse;
+  if (errno == E2BIG) return std::nullopt;
+  return false;
 }
 
 char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
@@ -190,14 +192,11 @@ char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
   size_t n = NextPow2(len + 2);
   while (true) {
     char* p = arena.Allocate<char>(n);
-    switch (IConvTry(ent.d_name, len, p + 1, n - 1)) {
-      case Tribool::kFalse:
-        return DirentDup(arena, ent, len);
-      case Tribool::kTrue:
-        *p = ent.d_type;
-        return p + 1;
-      case Tribool::kUnknown:
-        break;
+    std::optional<bool> converted = IConvTry(ent.d_name, len, p + 1, n - 1);
+    if (converted == false) return DirentDup(arena, ent, len);
+    if (converted == true) {
+      *p = ent.d_type;
+      return p + 1;
     }
     n *= 2;
   }

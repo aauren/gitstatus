@@ -34,6 +34,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -122,7 +123,8 @@ class Repo {
   std::atomic<size_t> unstaged_deleted_{0};
   std::atomic<size_t> skip_worktree_{0};
   std::atomic<size_t> assume_unchanged_{0};
-  std::atomic<Tribool> untracked_cache_{Tribool::kUnknown};
+  std::atomic<std::optional<bool>> untracked_cache_{std::nullopt};
+  static_assert(std::atomic<std::optional<bool>>::is_always_lock_free);
 };
 
 }  // namespace gitstatus

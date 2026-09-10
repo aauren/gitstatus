@@ -23,13 +23,13 @@
 #include <git2.h>
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "arena.h"
 #include "options.h"
-#include "tribool.h"
 
 namespace gitstatus {
 
@@ -44,7 +44,7 @@ struct RepoCaps {
 
 struct ScanOpts {
   bool include_untracked;
-  Tribool untracked_cache;
+  std::optional<bool> untracked_cache;
 };
 
 struct IndexDir {

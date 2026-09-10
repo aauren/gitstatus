@@ -106,19 +106,19 @@ Repo::Repo(git_repository* repo, Limits lim) : lim_(std::move(lim)), repo_(repo)
     GlobalThreadPool()->Schedule([this] {
       bool check = CheckDirMtime(git_repository_path(repo_));
       std::unique_lock<std::mutex> lock(mutex_);
-      CHECK(Load(untracked_cache_) == Tribool::kUnknown);
-      Store(untracked_cache_, check ? Tribool::kTrue : Tribool::kFalse);
+      CHECK(!Load(untracked_cache_).has_value());
+      Store(untracked_cache_, std::optional<bool>(check));
       cv_.notify_one();
     });
   } else {
-    untracked_cache_ = Tribool::kFalse;
+    untracked_cache_ = false;
   }
 }
 
 Repo::~Repo() {
   {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (untracked_cache_ == Tribool::kUnknown) cv_.wait(lock);
+    while (!untracked_cache_.load().has_value()) cv_.wait(lock);
   }
   if (git_index_) git_index_free(git_index_);
   git_repository_free(repo_);
