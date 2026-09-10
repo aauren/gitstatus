@@ -310,7 +310,15 @@ RepoCaps::RepoCaps(git_repository* repo, git_index* index) {
   trust_filemode = !(caps & GIT_INDEX_CAPABILITY_NO_FILEMODE);
   has_symlinks = !(caps & GIT_INDEX_CAPABILITY_NO_SYMLINKS);
   case_sensitive = !(caps & GIT_INDEX_CAPABILITY_IGNORE_CASE);
-  precompose_unicode = git_index_precompose_unicode(index);
+  // Not an index capability upstream, so read it the way libgit2 itself does:
+  // core.precomposeUnicode, false when unset
+  precompose_unicode = false;
+  git_config* cfg;
+  if (!git_repository_config_snapshot(&cfg, repo)) {
+    ON_SCOPE_EXIT(=) { git_config_free(cfg); };
+    int val;
+    if (!git_config_get_bool(&val, cfg, "core.precomposeunicode")) precompose_unicode = val;
+  }
   LOG(DEBUG) << "Repository capabilities for " << Print(git_repository_workdir(repo)) << ": "
              << "is_filemode_trustworthy = " << std::boolalpha << trust_filemode << ", "
              << "index_supports_symlinks = " << std::boolalpha << has_symlinks << ", "
