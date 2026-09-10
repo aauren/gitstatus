@@ -58,6 +58,9 @@ struct IndexStats {
   size_t num_unstaged_deleted = 0;
   size_t num_skip_worktree = 0;
   size_t num_assume_unchanged = 0;
+  // True when nothing above was computed, either because the request asked for
+  // that or because the index couldn't be read (split index, sparse index)
+  bool disabled = false;
 };
 
 class Repo {
@@ -99,6 +102,7 @@ class Repo {
   Limits lim_;
   git_repository* const repo_;
   git_index* git_index_ = nullptr;
+  bool index_read_failed_ = false;
   std::vector<Shard> shards_;
   git_oid head_ = {};
   TagDb tag_db_;

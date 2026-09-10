@@ -144,15 +144,33 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
     lim_.max_num_conflicted = 0;
   }
 
+  // libgit2 can't parse split (link) or sparse (sdir) indexes. Rather than
+  // failing the whole request, which the plugins render as "not a repo", we
+  // answer as if the request had asked us to skip the index entirely.
   if (git_index_) {
     int new_index;
-    VERIFY(!git_index_read_ex(git_index_, 0, &new_index)) << GitError();
+    if (git_index_read_ex(git_index_, index_read_failed_, &new_index)) {
+      LOG(WARN) << "Cannot read index, reporting it as disabled: " << GitError();
+      // A failed read leaves the entries cleared but the checksum libgit2 uses
+      // to detect changes intact, so if the index is later rewritten with the
+      // same content it would look unchanged and we'd keep serving the empty
+      // one. Force the next read instead of trusting that check.
+      index_read_failed_ = true;
+      head_ = {};
+      index_.reset();
+      return {.disabled = true};
+    }
+    index_read_failed_ = false;
     if (new_index) {
       head_ = {};
       index_.reset();
     }
   } else {
-    VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
+    if (git_repository_index(&git_index_, repo_)) {
+      LOG(WARN) << "Cannot open index, reporting it as disabled: " << GitError();
+      git_index_ = nullptr;
+      return {.disabled = true};
+    }
     // Query an attribute (doesn't matter which) to initialize repo's attribute
     // cache. It's a workaround for synchronization bugs (data races) in libgit2
     // that result from lazy cache initialization without synchronization.
