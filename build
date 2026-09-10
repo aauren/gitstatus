@@ -455,6 +455,7 @@ END
 
 docker_image=
 docker_cmd=
+docker_platform=
 
 gitstatus_arch=
 gitstatus_cpu=
@@ -602,6 +603,19 @@ case "$gitstatus_kernel" in
           ;;
         esac
       fi
+      # Multi-arch images resolve to the host platform by default, so we have
+      # to ask for the target explicitly when cross-building under qemu
+      case "$gitstatus_arch" in
+        x86_64)             docker_platform=linux/amd64;;
+        x86|i386|i586|i686) docker_platform=linux/386;;
+        armv6l|armhf)       docker_platform=linux/arm/v6;;
+        armv7l)             docker_platform=linux/arm/v7;;
+        aarch64)            docker_platform=linux/arm64;;
+        ppc64le)            docker_platform=linux/ppc64le;;
+        s390x)              docker_platform=linux/s390x;;
+        riscv64)            docker_platform=linux/riscv64;;
+        *)                  docker_platform=;;
+      esac
     fi
   ;;
   freebsd|openbsd|netbsd|darwin|dragonfly)
@@ -642,6 +656,7 @@ dir="$(pwd)"
 >&2 echo "  cpu := $gitstatus_cpu"
 [ -z "$docker_cmd" ] || >&2 echo "  docker command := $docker_cmd"
 [ -z "$docker_image"  ] || >&2 echo "  docker image := $docker_image"
+[ -z "$docker_platform" ] || >&2 echo "  docker platform := $docker_platform"
 if [ -n "$gitstatus_install_tools" ]; then
   >&2 echo "  install tools := yes"
 else
@@ -655,6 +670,7 @@ fi
 
 if [ -n "$docker_cmd" ]; then
   "$docker_cmd" run                                       \
+    ${docker_platform:+--platform "$docker_platform"}     \
     -e docker_cmd="$docker_cmd"                           \
     -e docker_image="$docker_image"                       \
     -e gitstatus_kernel="$gitstatus_kernel"               \
