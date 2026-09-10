@@ -56,16 +56,12 @@ constexpr int8_t kUnhex[256] = {
     0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0   // 6
 };
 
+// git_oid_cmp compares the type first and then as many bytes as the type has,
+// so it's right for both SHA1 and SHA256 repos as long as Tag::id carries a type
 struct {
-  bool operator()(const Tag* x, const git_oid& y) const {
-    return std::memcmp(x->id.id, y.id, GIT_OID_RAWSZ) < 0;
-  }
-  bool operator()(const git_oid& x, const Tag* y) const {
-    return std::memcmp(x.id, y->id.id, GIT_OID_RAWSZ) < 0;
-  }
-  bool operator()(const Tag* x, const Tag* y) const {
-    return std::memcmp(x->id.id, y->id.id, GIT_OID_RAWSZ) < 0;
-  }
+  bool operator()(const Tag* x, const git_oid& y) const { return git_oid_cmp(&x->id, &y) < 0; }
+  bool operator()(const git_oid& x, const Tag* y) const { return git_oid_cmp(&x, &y->id) < 0; }
+  bool operator()(const Tag* x, const Tag* y) const { return git_oid_cmp(&x->id, &y->id) < 0; }
 } constexpr ById = {};
 
 struct {
@@ -80,13 +76,6 @@ struct {
   }
 } constexpr ByName = {};
 
-void ParseOid(unsigned char* oid, const char* begin, const char* end) {
-  VERIFY(end >= begin + GIT_OID_HEXSZ);
-  for (size_t i = 0; i != GIT_OID_HEXSZ; i += 2) {
-    *oid++ = kUnhex[+begin[i]] << 4 | kUnhex[+begin[i + 1]];
-  }
-}
-
 const char* StripTag(const char* ref) {
   for (size_t i = 0; i != sizeof(kTagPrefix) - 1; ++i) {
     if (*ref++ != kTagPrefix[i]) return nullptr;
@@ -94,14 +83,37 @@ const char* StripTag(const char* ref) {
   return ref;
 }
 
+size_t OidHexSize(git_oid_t type) {
+  switch (type) {
+    case GIT_OID_SHA1:
+      return GIT_OID_SHA1_HEXSIZE;
+    case GIT_OID_SHA256:
+      return GIT_OID_SHA256_HEXSIZE;
+  }
+  LOG(ERROR) << "Unknown object id type: " << static_cast<int>(type);
+  throw Exception();
+}
+
 }  // namespace
 
 TagDb::TagDb(git_repository* repo)
     : repo_(repo),
+      oid_type_(git_repository_oid_type(repo)),
+      oid_hexsz_(OidHexSize(oid_type_)),
       pack_(&pack_arena_),
       name2id_(&pack_arena_),
       id2name_(&pack_arena_) {
   CHECK(repo_);
+}
+
+void TagDb::ParseOid(git_oid& oid, const char* begin, const char* end) const {
+  VERIFY(end >= begin + oid_hexsz_);
+  std::memset(&oid, 0, sizeof(oid));
+  oid.type = oid_type_;
+  unsigned char* out = oid.id;
+  for (size_t i = 0; i != oid_hexsz_; i += 2) {
+    *out++ = kUnhex[+begin[i]] << 4 | kUnhex[+begin[i + 1]];
+  }
 }
 
 TagDb::~TagDb() {
@@ -127,7 +139,7 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (id2name_dirty_) {
     for (auto it = name2id_.rbegin(); it != name2id_.rend(); ++it) {
-      if (!memcmp((*it)->id.id, oid.id, GIT_OID_RAWSZ) && !IsLooseTag((*it)->name)) {
+      if (git_oid_equal(&(*it)->id, &oid) && !IsLooseTag((*it)->name)) {
         if (res < (*it)->name) res = (*it)->name;
         break;
       }
@@ -243,16 +255,16 @@ void TagDb::ParsePack() {
 
   while (p != e) {
     Tag* tag = pack_arena_.Allocate<Tag>();
-    ParseOid(tag->id.id, p, e);
-    p += GIT_OID_HEXSZ;
+    ParseOid(tag->id, p, e);
+    p += oid_hexsz_;
     VERIFY(*p++ == ' ');
     const char* ref = p;
     VERIFY(p = std::strchr(p, '\n'));
     p[p[-1] == '\r' ? -1 : 0] = 0;
     ++p;
     if (*p == '^') {
-      ParseOid(tag->id.id, p + 1, e);
-      p += GIT_OID_HEXSZ + 1;
+      ParseOid(tag->id, p + 1, e);
+      p += oid_hexsz_ + 1;
       if (p != e) {
         VERIFY((p = std::strchr(p, '\n')));
         ++p;

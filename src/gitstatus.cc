@@ -86,7 +86,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
   resp.Print(workdir);
 
-  // Revision. Either 40 hex digits or an empty string for empty repo.
+  // Revision. 40 hex digits (64 in a SHA256 repo) or an empty string for empty repo.
   resp.Print(head_target ? git_oid_tostr_s(head_target) : "");
 
   // Local branch name (e.g., "master") or empty string if not on a branch.

@@ -51,6 +51,7 @@ class TagDb {
   void ReadLooseTags();
   void UpdatePack();
   void ParsePack();
+  void ParseOid(git_oid& oid, const char* begin, const char* end) const;
   void Wait();
 
   bool IsLooseTag(const char* name) const;
@@ -58,6 +59,8 @@ class TagDb {
   bool TagHasTarget(const char* name, const git_oid* target) const;
 
   git_repository* const repo_;
+  const git_oid_t oid_type_;
+  const size_t oid_hexsz_;
 
   Arena pack_arena_;
   struct stat pack_stat_ = {};

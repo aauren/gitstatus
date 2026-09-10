@@ -157,7 +157,7 @@ void PrintUsage() {
             << "     2. 0 if the directory isn't a git repo, 1 otherwise. If 0, all the\n"
             << "        following fields are missing.\n"
             << "     3. Absolute path to the git repository workdir.\n"
-            << "     4. Commit hash that HEAD is pointing to. 40 hex digits.\n"
+            << "     4. Commit hash that HEAD is pointing to. 40 hex digits (64 in a SHA256 repo).\n"
             << "     5. Local branch name or empty if not on a branch.\n"
             << "     6. Upstream branch name. Can be empty.\n"
             << "     7. The remote name, e.g. \"upstream\" or \"origin\".\n"

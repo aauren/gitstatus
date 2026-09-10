@@ -309,8 +309,8 @@ function gitstatus_stop() {
 # If VCS_STATUS_RESULT is ok-sync, additional variables are set:
 #
 #   VCS_STATUS_WORKDIR              Git repo working directory. Not empty.
-#   VCS_STATUS_COMMIT               Commit hash that HEAD is pointing to. Either 40 hex digits or
-#                                   empty if there is no HEAD (empty repo).
+#   VCS_STATUS_COMMIT               Commit hash that HEAD is pointing to. Either 40 hex digits (64 in
+#                                   a SHA256 repo) or empty if there is no HEAD (empty repo).
 #   VCS_STATUS_COMMIT_ENCODING      Encoding of the HEAD's commit message. Empty value means UTF-8.
 #   VCS_STATUS_COMMIT_SUMMARY       The first paragraph of the HEAD's commit message as one line.
 #   VCS_STATUS_LOCAL_BRANCH         Local branch name or empty if not on a branch.
