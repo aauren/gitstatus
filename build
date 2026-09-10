@@ -233,6 +233,9 @@ gitstatus_make=make
 
 case "$gitstatus_kernel" in
   linux)
+    # musl 1.2.5 dropped ino64_t/off64_t from _GNU_SOURCE, and src/dir.cc still
+    # uses them for the getdents64 layout, so ask for them explicitly for now
+    gitstatus_cxxflags="$gitstatus_cxxflags -D_LARGEFILE64_SOURCE"
     gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
