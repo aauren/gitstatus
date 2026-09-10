@@ -90,6 +90,10 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 | `!8`        | there are 8 unstaged changes                          |
 | `?9`        | there are 9 untracked files                           |
 
+Branch names and tags longer than 32 characters get truncated in the middle. To see the full
+name instead, export `GITSTATUS_USE_FULL_BRANCH_NAME=1` in `~/.zshrc` before sourcing
+`gitstatus.prompt.zsh`.
+
 `$GITSTATUS_PROMPT_LEN` tells you how long `$GITSTATUS_PROMPT` is when printed to the console.
 [gitstatus.prompt.zsh](gitstatus.prompt.zsh) has an example of using it to truncate the current
 directory.
@@ -191,6 +195,10 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 | `+7`        | there are 7 staged changes                            |
 | `!8`        | there are 8 unstaged changes                          |
 | `?9`        | there are 9 untracked files                           |
+
+Branch names and tags longer than 32 characters get truncated in the middle. To see the full
+name instead, export `GITSTATUS_USE_FULL_BRANCH_NAME=1` in `~/.bashrc` before sourcing
+`gitstatus.prompt.sh`.
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PS1`, you can copy and modify parts of

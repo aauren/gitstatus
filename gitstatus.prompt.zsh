@@ -52,8 +52,11 @@ function gitstatus_prompt_update() {
     where=${VCS_STATUS_COMMIT[1,8]}
   fi
 
-  (( $#where > 32 )) && where[13,-13]="…"  # truncate long branch names and tags
-  p+="${clean}${where//\%/%%}"             # escape %
+  # Truncate long branch names and tags unless GITSTATUS_USE_FULL_BRANCH_NAME=1.
+  if (( ! ${GITSTATUS_USE_FULL_BRANCH_NAME:-0} )); then
+    (( $#where > 32 )) && where[13,-13]="…"
+  fi
+  p+="${clean}${where//\%/%%}"  # escape %
 
   # ⇣42 if behind the remote.
   (( VCS_STATUS_COMMITS_BEHIND )) && p+=" ${clean}⇣${VCS_STATUS_COMMITS_BEHIND}"
