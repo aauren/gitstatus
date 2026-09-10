@@ -58,7 +58,6 @@ class TagDb {
   bool TagHasTarget(const char* name, const git_oid* target) const;
 
   git_repository* const repo_;
-  git_refdb* const refdb_;
 
   Arena pack_arena_;
   struct stat pack_stat_ = {};
