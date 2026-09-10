@@ -216,7 +216,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
     size_t skip_worktree = 0;
     size_t assume_unchanged = 0;
     for (size_t i = 0; i != index_size; ++i) {
-      const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, i);
+      const git_index_entry* entry = git_index_get_byindex(git_index_, i);
       if (!(entry->flags_extended & GIT_INDEX_ENTRY_INTENT_TO_ADD)) ++staged;
       if (entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) ++skip_worktree;
       if (entry->flags & GIT_INDEX_ENTRY_VALID) ++assume_unchanged;
@@ -373,7 +373,7 @@ void Repo::StartStagedScan(const git_oid* head) {
       size_t skip_worktree = 0;
       size_t assume_unchanged = 0;
       for (size_t i = shard.start_i; i != shard.end_i; ++i) {
-        const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, i);
+        const git_index_entry* entry = git_index_get_byindex(git_index_, i);
         if (entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) ++skip_worktree;
         if (entry->flags & GIT_INDEX_ENTRY_VALID) ++assume_unchanged;
       }
@@ -425,7 +425,7 @@ void Repo::UpdateShards() {
 
   for (size_t i = 0; i != shards - 1; ++i) {
     size_t idx = (i + 1) * index_size / shards;
-    std::string split = git_index_get_byindex_no_sort(git_index_, idx)->path;
+    std::string split = git_index_get_byindex(git_index_, idx)->path;
     auto pos = split.find_last_of('/');
     if (pos == std::string::npos) continue;
     split = split.substr(0, pos + 1);
@@ -454,7 +454,7 @@ void Repo::UpdateShards() {
   CHECK(shards_.back().end_i == index_size);
   for (size_t i = 0; i != shards_.size(); ++i) {
     if (i) {
-      const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, shards_[i].start_i);
+      const git_index_entry* entry = git_index_get_byindex(git_index_, shards_[i].start_i);
       CHECK(!std::memcmp(shards_[i].start_s.c_str(), entry->path, shards_[i].start_s.size()));
       CHECK(str.Lt(shards_[i - 1].end_s, shards_[i].start_s));
       CHECK(shards_[i - 1].end_i == shards_[i].start_i);
