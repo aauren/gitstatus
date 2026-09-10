@@ -295,7 +295,9 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   } else {
     opt.flags |= GIT_DIFF_ENABLE_FAST_UNTRACKED_DIRS;
   }
-  opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
+  // Leave ignore_submodules unset so that libgit2 honours submodule.<name>.ignore
+  // and diff.ignoreSubmodules the same way git status does, rather than forcing
+  // "dirty" and disagreeing with it for submodules marked ignore=all.
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     if (delta->status == GIT_DELTA_CONFLICTED) return GIT_DIFF_DELTA_DO_NOT_INSERT;
