@@ -70,34 +70,33 @@ uint64_t Read64(const void* p) {
 
 void Write64(uint64_t x, void* p) { std::memcpy(p, &x, 8); }
 
-void SwapBytes(DirEntry* begin, DirEntry* end) {
+void SwapBytes(char** begin, char** end) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  for (; begin != end; ++begin) Write64(__builtin_bswap64(Read64(begin->name)), begin->name);
+  for (; begin != end; ++begin) Write64(__builtin_bswap64(Read64(*begin)), *begin);
 #elif __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__
 #error "sorry, not implemented"
 #endif
 }
 
 template <bool kCaseSensitive>
-void SortEntries(DirEntry* begin, DirEntry* end) {
+void SortEntries(char** begin, char** end) {
   static_assert(kCaseSensitive, "");
   SwapBytes(begin, end);
-  std::sort(begin, end, [](const DirEntry& a, const DirEntry& b) {
-    uint64_t x = Read64(a.name);
-    uint64_t y = Read64(b.name);
+  std::sort(begin, end, [](const char* a, const char* b) {
+    uint64_t x = Read64(a);
+    uint64_t y = Read64(b);
     // Add 5 for good luck.
-    return x < y || (x == y && std::memcmp(a.name + 5, b.name + 5, 256) < 0);
+    return x < y || (x == y && std::memcmp(a + 5, b + 5, 256) < 0);
   });
   SwapBytes(begin, end);
 }
 
 template <>
-void SortEntries<false>(DirEntry* begin, DirEntry* end) {
-  std::sort(begin, end,
-            [](const DirEntry& a, const DirEntry& b) { return StrLt<false>()(a.name, b.name); });
+void SortEntries<false>(char** begin, char** end) {
+  std::sort(begin, end, StrLt<false>());
 }
 
-bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool precompose_unicode,
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
              bool case_sensitive) {
   // The kernel's layout, which is 64-bit no matter what the libc calls ino_t
   // and off_t (musl 1.2.5 dropped the *64_t spellings from _GNU_SOURCE)
@@ -122,7 +121,7 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool prec
     }
     for (int pos = 0; pos < n;) {
       auto* ent = reinterpret_cast<linux_dirent64*>(buf + pos);
-      if (!Dots(ent->d_name)) entries.push_back({ent->d_name, ent->d_type});
+      if (!Dots(ent->d_name)) entries.push_back(ent->d_name);
       pos += ent->d_reclen;
     }
     if (n == 0) break;
@@ -147,10 +146,11 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool prec
 
 namespace {
 
-DirEntry DirentDup(Arena& arena, const struct dirent& ent, size_t len) {
-  char* p = arena.Allocate<char>(len + 1);
+char* DirentDup(Arena& arena, const struct dirent& ent, size_t len) {
+  char* p = arena.Allocate<char>(len + 2);
+  *p++ = ent.d_type;
   std::memcpy(p, ent.d_name, len + 1);
-  return {p, ent.d_type};
+  return p;
 }
 
 #ifdef __APPLE__
@@ -176,7 +176,7 @@ Tribool IConvTry(char* inp, size_t ins, char* outp, size_t outs) {
   return errno == E2BIG ? Tribool::kUnknown : Tribool::kFalse;
 }
 
-DirEntry DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
+char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
   if (!do_convert) return DirentDup(arena, ent, std::strlen(ent.d_name));
 
   size_t len = 0;
@@ -186,14 +186,15 @@ DirEntry DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
   }
   if (!do_convert) return DirentDup(arena, ent, len);
 
-  size_t n = NextPow2(len + 1);
+  size_t n = NextPow2(len + 2);
   while (true) {
     char* p = arena.Allocate<char>(n);
-    switch (IConvTry(ent.d_name, len, p, n)) {
+    switch (IConvTry(ent.d_name, len, p + 1, n - 1)) {
       case Tribool::kFalse:
         return DirentDup(arena, ent, len);
       case Tribool::kTrue:
-        return {p, ent.d_type};
+        *p = ent.d_type;
+        return p + 1;
       case Tribool::kUnknown:
         break;
     }
@@ -203,7 +204,7 @@ DirEntry DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
 
 #else  // __APPLE__
 
-DirEntry DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
+char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
   return DirentDup(arena, ent, std::strlen(ent.d_name));
 }
 
@@ -211,7 +212,7 @@ DirEntry DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
 
 }  // namespace
 
-bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool precompose_unicode,
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
              bool case_sensitive) {
   const size_t orig_size = entries.size();
   dir_fd = dup(dir_fd);
@@ -230,15 +231,7 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<DirEntry>& entries, bool prec
     entries.resize(orig_size);
     return false;
   }
-  DirEntry* begin = entries.data() + orig_size;
-  DirEntry* end = entries.data() + entries.size();
-  if (case_sensitive) {
-    std::sort(begin, end,
-              [](const DirEntry& a, const DirEntry& b) { return StrLt<true>()(a.name, b.name); });
-  } else {
-    std::sort(begin, end,
-              [](const DirEntry& a, const DirEntry& b) { return StrLt<false>()(a.name, b.name); });
-  }
+  StrSort(entries.data() + orig_size, entries.data() + entries.size(), case_sensitive);
   return true;
 }
 

@@ -31,7 +31,6 @@
 #include <vector>
 
 #include "arena.h"
-#include "dir.h"
 
 namespace gitstatus {
 
@@ -67,7 +66,7 @@ class TagDb {
   WithArena<std::vector<const Tag*>> id2name_;
 
   Arena loose_arena_;
-  std::vector<DirEntry> loose_tags_;
+  std::vector<char*> loose_tags_;
 
   std::mutex mutex_;
   std::condition_variable cv_;
