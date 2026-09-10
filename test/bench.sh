@@ -34,7 +34,8 @@ if [ -z "$repos" ] || [ $# -eq 0 ]; then
   exit 2
 fi
 
-args="-s -1 -u -1 -d -1 -v ERROR"
+# Same defaults as test/run.sh, and overridable the same way
+args="${GITSTATUSD_ARGS:--s -1 -u -1 -d -1 -v ERROR}"
 [ -n "$threads" ] && args="$args -t $threads"
 
 now_ns() { date +%s%N; }
