@@ -164,7 +164,6 @@ esac
 
 cflags="$archflag=$gitstatus_cpu $nopltflag -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fpie"
 ldflags=
-static_pie=
 
 if [ -z "${CC-}" ]; then
   case "$gitstatus_kernel" in
@@ -174,15 +173,6 @@ if [ -z "${CC-}" ]; then
 fi
 
 printf 'int main() {}\n' >"$workdir"/cc-test.c
-if 2>/dev/null "$CC"   \
-     -ffile-prefix-map=x=y   \
-     -Werror                 \
-     -c "$workdir"/cc-test.c \
-     -o "$workdir"/cc-test.o; then
-  cflags="$cflags -ffile-prefix-map=$workdir/="
-fi
-
-command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
 if 2>/dev/null "$CC"          \
      -fstack-clash-protection \
      -Werror                  \
@@ -209,55 +199,39 @@ if 2>/dev/null "$CC"                             \
   ldflags="$ldflags -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
 fi
 
-command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
-if 2>/dev/null "$CC" \
-     -fpie -static-pie     \
-     -Werror               \
-     "$workdir"/cc-test.c  \
-     -o "$workdir"/cc-test; then
-  static_pie='-static-pie'
-fi
-
 if [ "$gitstatus_cpu" = x86-64 ]; then
   cflags="$cflags -mtune=generic"
 fi
 
-libgit2_cmake_flags=
+# Everything below feeds one cmake run over ./CMakeLists.txt, which builds
+# libgit2 from the tarball and gitstatusd against it. CMAKE_BUILD_TYPE=None so
+# that the flags are exactly what we pass and nothing cmake adds on its own.
+cmake_flags="-DGITSTATUS_STATIC=ON"
 libgit2_cflags="${CFLAGS-} $cflags -O3 -DNDEBUG"
 
 gitstatus_cxx=g++
-gitstatus_cxxflags="${CXXFLAGS-} $cflags -I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE -D_GLIBCXX_ASSERTIONS"
-gitstatus_ldflags="${LDFLAGS-} $ldflags -L${workdir}/libgit2/build"
+gitstatus_cxxflags="${CXXFLAGS-} $cflags -O3 -DNDEBUG"
+gitstatus_ldflags="${LDFLAGS-} $ldflags"
 gitstatus_ldlibs=
 gitstatus_make=make
 
 case "$gitstatus_kernel" in
   linux)
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   freebsd)
     gitstatus_cxx=clang++
     gitstatus_make=gmake
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   dragonfly)
     gitstatus_cxx=clang++12
     gitstatus_make=gmake
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   openbsd)
     gitstatus_cxx=eg++
     gitstatus_make=gmake
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   netbsd)
     gitstatus_make=gmake
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   darwin)
     command mkdir -- "$workdir"/lib
@@ -271,18 +245,14 @@ case "$gitstatus_kernel" in
       libgit2_cflags="$libgit2_cflags -I"$brew_prefix"/opt/libiconv/include"
       gitstatus_cxxflags="$gitstatus_cxxflags -I"$brew_prefix"/opt/libiconv/include"
     fi
-    libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
-    gitstatus_ldlibs="$gitstatus_ldlibs -liconv -lz"
+    gitstatus_ldlibs="iconv;z"
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=OFF -DUSE_BUNDLED_ZLIB=OFF"
+    # No static libc on darwin, so a dynamic link against the system zlib and a static libiconv
+    cmake_flags="-DGITSTATUS_STATIC=OFF -DUSE_ICONV=ON -DENABLE_REPRODUCIBLE_BUILDS=OFF -DUSE_BUNDLED_ZLIB=OFF"
   ;;
   msys*|mingw*)
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   cygwin*)
-    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   *)
     >&2 echo "[internal error] unhandled kernel: $gitstatus_kernel"
@@ -290,7 +260,7 @@ case "$gitstatus_kernel" in
   ;;
 esac
 
-for cmd in cat cmake git ld ln mkdir rm strip tar "$gitstatus_make"; do
+for cmd in cat cmake git ld ln mkdir rm strip "$gitstatus_make"; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     if [ -n "$gitstatus_install_tools" ]; then
       >&2 echo "[internal error] $cmd not found"
@@ -374,42 +344,25 @@ if [ "$libgit2_actual_sha256" != "$libgit2_sha256" ]; then
   exit 1
 fi
 
-cd -- "$workdir"
-command tar -xzf "$libgit2_tarball"
-command mv -- libgit2-"$libgit2_version" libgit2
-command mkdir libgit2/build
-cd libgit2/build
+command mkdir -- "$workdir"/build
+cd -- "$workdir"/build
 
-CFLAGS="$libgit2_cflags" command cmake \
-  -DCMAKE_BUILD_TYPE=None              \
-  -DUSE_THREADS=ON                     \
-  -DUSE_NSEC=ON                        \
-  -DEXPERIMENTAL_SHA256=ON             \
-  -DUSE_BUNDLED_ZLIB=ON                \
-  -DREGEX_BACKEND=builtin              \
-  -DUSE_HTTP_PARSER=builtin            \
-  -DUSE_SSH=OFF                        \
-  -DUSE_HTTPS=OFF                      \
-  -DBUILD_TESTS=OFF                    \
-  -DBUILD_CLI=OFF                      \
-  -DUSE_GSSAPI=OFF                     \
-  -DUSE_NTLMCLIENT=OFF                 \
-  -DBUILD_SHARED_LIBS=OFF              \
-  -G "Unix Makefiles"                  \
-  $libgit2_cmake_flags                 \
-  ..
-command make -j "$cpus" VERBOSE=1
-
-APPNAME="$appname".tmp           \
-  OBJDIR="$workdir"/gitstatus    \
-  CXX="${CXX:-$gitstatus_cxx}"   \
-  CXXFLAGS="$gitstatus_cxxflags" \
-  LDFLAGS="$gitstatus_ldflags"   \
-  LDLIBS="$gitstatus_ldlibs"     \
-  command "$gitstatus_make" -C "$outdir" -j "$cpus"
+CXX="${CXX:-$gitstatus_cxx}"                   \
+  CFLAGS="$libgit2_cflags"                     \
+  CXXFLAGS="$gitstatus_cxxflags"               \
+  LDFLAGS="$gitstatus_ldflags"                 \
+  command cmake                                \
+  -DCMAKE_BUILD_TYPE=None                      \
+  -DGITSTATUS_LIBGIT2_TARBALL="$libgit2_tarball" \
+  -DGITSTATUS_EXTRA_LIBS="$gitstatus_ldlibs"   \
+  -G "Unix Makefiles"                          \
+  $cmake_flags                                 \
+  "$outdir"
+command cmake --build . -j "$cpus" --verbose
 
 app="$outdir"/usrbin/"$appname"
 
+command cp -- "$workdir"/build/"$appname" "$app".tmp
 command strip "$app".tmp
 
 command mkdir -- "$workdir"/repo

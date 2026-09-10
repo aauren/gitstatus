@@ -1,0 +1,31 @@
+# Run with the compile database from any preset, e.g.
+#   clang-tidy -p out/default src/*.cc
+#
+# The checks are deliberately narrow: bug-prone patterns and the C++20
+# modernizations the code base already follows, not style churn. Anything
+# noisy on the existing sources is left off rather than suppressed inline.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  cert-err34-c,
+  clang-analyzer-*,
+  misc-unused-using-decls,
+  misc-redundant-expression,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-emplace,
+  modernize-loop-convert,
+  performance-*,
+  -performance-avoid-endl,
+  -performance-enum-size,
+  readability-container-size-empty,
+  readability-redundant-string-cstr,
+  readability-misleading-indentation
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
+FormatStyle: file

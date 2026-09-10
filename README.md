@@ -530,6 +530,21 @@ current directory to `/path/to/powerlevel10k/gitstatus` (`/path/to/powerlevel10k
 where you've installed Powerlevel10k) and run `./build -w -s -d docker` from there as described
 above.
 
+### Compiling for development
+
+`./build` is a wrapper around `CMakeLists.txt`, which builds libgit2 from the tarball pinned in
+`build.info` (cached in `deps/`, downloaded if missing) and gitstatusd against it. If you're
+hacking on the daemon you'll want the presets in `CMakePresets.json` instead, which give you a
+dynamic build with `-Wall -Wextra` and a `ctest` hook for `test/run.sh`:
+
+```zsh
+cmake --preset default && cmake --build --preset default && ctest --preset default
+```
+
+`make` does the same and copies the result to `./usrbin`. The `asan` and `tsan` presets build both
+gitstatusd and libgit2 under clang's sanitizers, and `static` is the `-static-pie` configuration
+`./build` ships.
+
 ### Compiling for distribution
 
 It's currently neither easy nor recommended to package and distribute gitstatus. There are no

@@ -6,3 +6,4 @@
 /obj
 /usrbin/gitstatusd*
 /.vscode/ipch
+/out

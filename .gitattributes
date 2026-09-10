@@ -14,3 +14,5 @@
 /build         text eol=lf
 /install       text eol=lf
 /mbuild        text eol=lf
+/.clang-tidy   text eol=lf
+/CMakeLists.txt text eol=lf

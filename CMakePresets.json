@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Release, dynamic libc",
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "static",
+      "displayName": "Release, -static-pie (what ./build ships)",
+      "inherits": "default",
+      "cacheVariables": {
+        "GITSTATUS_STATIC": "ON"
+      }
+    },
+    {
+      "name": "asan",
+      "displayName": "clang ASan+UBSan, gitstatusd and libgit2",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_FLAGS_DEBUG": "-g -O1",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g -O1",
+        "GITSTATUS_SANITIZE": "address,undefined"
+      }
+    },
+    {
+      "name": "tsan",
+      "displayName": "clang TSan, gitstatusd and libgit2",
+      "inherits": "asan",
+      "cacheVariables": {
+        "GITSTATUS_SANITIZE": "thread"
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "default", "configurePreset": "default"},
+    {"name": "static", "configurePreset": "static"},
+    {"name": "asan", "configurePreset": "asan"},
+    {"name": "tsan", "configurePreset": "tsan"}
+  ],
+  "testPresets": [
+    {"name": "default", "configurePreset": "default", "output": {"outputOnFailure": true}},
+    {"name": "static", "configurePreset": "static", "output": {"outputOnFailure": true}},
+    {"name": "asan", "configurePreset": "asan", "output": {"outputOnFailure": true}},
+    {"name": "tsan", "configurePreset": "tsan", "output": {"outputOnFailure": true}}
+  ]
+}
