@@ -22,7 +22,7 @@ set(GITSTATUS_SANITIZE "" CACHE STRING
     "Comma-separated -fsanitize= list applied to gitstatusd and libgit2 (e.g. address,undefined or thread)")
 set(GITSTATUS_LIBGIT2_TARBALL "" CACHE FILEPATH
     "libgit2 source tarball to build against; defaults to deps/libgit2-<version>.tar.gz, downloaded if missing")
-set(GITSTATUS_EXTRA_LIBS "" CACHE STRING "Extra libraries to link gitstatusd against (e.g. iconv on darwin)")
+set(GITSTATUS_EXTRA_LIBS "" CACHE STRING "Extra libraries to link gitstatusd against, beyond what libgit2 already pulls in")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -153,16 +153,7 @@ case "$gitstatus_cpu" in
   ;;
 esac
 
-case "$gitstatus_arch" in
-  e2k)
-    nopltflag=""
-  ;;
-  *)
-    nopltflag="-fno-plt"
-  ;;
-esac
-
-cflags="$archflag=$gitstatus_cpu $nopltflag -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fpie"
+cflags="$archflag=$gitstatus_cpu -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fpie"
 ldflags=
 
 if [ -z "${CC-}" ]; then
@@ -172,7 +163,18 @@ if [ -z "${CC-}" ]; then
   esac
 fi
 
+# -fno-plt is ELF-only, so darwin clang warns about it on every file (and e2k
+# rejects it outright), which is why we probe rather than hardcode
 printf 'int main() {}\n' >"$workdir"/cc-test.c
+if 2>/dev/null "$CC"         \
+     -fno-plt                \
+     -Werror                 \
+     -c "$workdir"/cc-test.c \
+     -o "$workdir"/cc-test.o; then
+  cflags="$cflags -fno-plt"
+fi
+
+command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
 if 2>/dev/null "$CC"          \
      -fstack-clash-protection \
      -Werror                  \
@@ -212,7 +214,6 @@ libgit2_cflags="${CFLAGS-} $cflags -O3 -DNDEBUG"
 gitstatus_cxx=g++
 gitstatus_cxxflags="${CXXFLAGS-} $cflags -O3 -DNDEBUG"
 gitstatus_ldflags="${LDFLAGS-} $ldflags"
-gitstatus_ldlibs=
 gitstatus_make=make
 
 case "$gitstatus_kernel" in
@@ -245,9 +246,10 @@ case "$gitstatus_kernel" in
       libgit2_cflags="$libgit2_cflags -I"$brew_prefix"/opt/libiconv/include"
       gitstatus_cxxflags="$gitstatus_cxxflags -I"$brew_prefix"/opt/libiconv/include"
     fi
-    gitstatus_ldlibs="iconv;z"
+    # No static libc on darwin, so a dynamic link against the system zlib and a
+    # static libiconv. libgit2 propagates -liconv and -lz to gitstatusd itself,
+    # and -L$workdir/lib ahead of the SDK is what makes -liconv pick the .a
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
-    # No static libc on darwin, so a dynamic link against the system zlib and a static libiconv
     cmake_flags="-DGITSTATUS_STATIC=OFF -DUSE_ICONV=ON -DENABLE_REPRODUCIBLE_BUILDS=OFF -DUSE_BUNDLED_ZLIB=OFF"
   ;;
   msys*|mingw*)
@@ -354,7 +356,6 @@ CXX="${CXX:-$gitstatus_cxx}"                   \
   command cmake                                \
   -DCMAKE_BUILD_TYPE=None                      \
   -DGITSTATUS_LIBGIT2_TARBALL="$libgit2_tarball" \
-  -DGITSTATUS_EXTRA_LIBS="$gitstatus_ldlibs"   \
   -G "Unix Makefiles"                          \
   $cmake_flags                                 \
   "$outdir"

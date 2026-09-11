@@ -97,6 +97,15 @@ for shell in bash zsh; do
     continue
   fi
 
+  # gitstatus.plugin.sh refuses bash < 4, and that's what macOS ships in /bin
+  if [ "$shell" = bash ]; then
+    bash_major="$(bash -c 'printf "%s" "${BASH_VERSINFO[0]}"')"
+    if [ "${bash_major:-0}" -lt 4 ]; then
+      echo "skipping bash: need version >= 4.0, found $(bash -c 'printf "%s" "$BASH_VERSION"')"
+      continue
+    fi
+  fi
+
   unset GITSTATUS_USE_FULL_BRANCH_NAME
   expect_prompt "$shell" "$truncated" "$branch"
 
