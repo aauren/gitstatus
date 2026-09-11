@@ -18,5 +18,5 @@ gitstatus_version="v2.0.0-dev"
 #
 # If sha256 of ./deps/libgit2-${libgit2_version}.tar.gz doesn't match,
 # build gets aborted.
-libgit2_version="tag-a80fdfead7f8173e78dc57d54c5b6a09ae852e69"
-libgit2_sha256="84e911c0389db76c5ec5b8229f9698c84eab27cdbdd8e52c25e29fe6f89dcdcf"
+libgit2_version="tag-979342c6ab30fa88ae103a852b63236b627e5b59"
+libgit2_sha256="84e6389ce516ca2580e58cf9b1385edb5aa034b90d589ada623cacccaeb2c8de"
