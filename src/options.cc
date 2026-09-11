@@ -241,7 +241,7 @@ void PrintUsage() {
             << "COPYRIGHT\n"
             << "\n"
             << "  Copyright 2019 Roman Perepelitsa\n"
-            << "  This is free software; see https://github.com/romkatv/gitstatus for copying\n"
+            << "  This is free software; see https://github.com/aauren/gitstatus for copying\n"
             << "  conditions. There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR\n"
             << "  A PARTICULAR PURPOSE." << std::endl;
 }

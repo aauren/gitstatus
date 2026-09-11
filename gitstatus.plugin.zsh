@@ -809,7 +809,7 @@ function gitstatus_start"${1:-}"() {
       print -Pru2  -- '%f'
       print -ru2   -- '  If you need help, open an issue and attach this whole error message to it:'
       print -ru2   -- ''
-      print -Pru2  -- '    %Uhttps://github.com/romkatv/gitstatus/issues/new%u'
+      print -Pru2  -- '    %Uhttps://github.com/aauren/gitstatus/issues/new%u'
     else
       print -ru2   -- ''
       local home=~

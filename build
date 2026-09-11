@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Type `build -h` for help and see https://github.com/romkatv/gitstatus
+# Type `build -h` for help and see https://github.com/aauren/gitstatus
 # for full documentation.
 
 set -ue
