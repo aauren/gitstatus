@@ -365,6 +365,10 @@ size_t Index::InitDirs(git_index* index) {
 
   for (size_t i = 0; i != index_size; ++i) {
     const git_index_entry* entry = git_index_get_byindex(index, i);
+    // Git treats skip-worktree entries (sparse checkouts) as absent from the
+    // worktree, so they can't be deleted or modified. Leaving them out here
+    // also keeps us from opening dirs a cone checkout never created.
+    if (entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) continue;
     IndexDir* prev = stack.top();
     size_t common_len, common_depth;
     CommonDir(str, prev->path, entry->path, &common_len, &common_depth);
