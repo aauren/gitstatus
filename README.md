@@ -1,17 +1,61 @@
 # gitstatus
 
-- **THE PROJECT HAS VERY LIMITED SUPPORT**
-- **NO NEW FEATURES ARE IN THE WORKS**
-- **MOST BUGS WILL GO UNFIXED**
-
 **gitstatus** is a 10x faster alternative to `git status` and `git describe`. Its primary use
 case is to enable fast git prompt in interactive shells.
 
 Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with Zsh and
 Bash bindings for integration with shell.
 
+## Current State
+
+This is a fork of [romkatv/gitstatus](https://github.com/romkatv/gitstatus). Upstream has been on
+life support for a while (its README says so, most bugs go unfixed and no new features are in the
+works), and the libgit2 it builds against is a 2019-era fork with a use-after-free that crashes the
+daemon on any current musl. I started this fork because I wanted my own prompt to stop dying, and
+it grew from there into moving gitstatusd onto a current libgit2 with a real build and test story.
+
+I'm primarily doing this for myself. I'm happy if other people find it useful, but I'm not sure I
+will ever cut release builds, and bug fixing is at my discretion. If you use it, be prepared to
+build it yourself (`./build -w -s -d docker`, see [Compiling](#compiling)) and to read the code
+when something goes wrong.
+
+As far as I know this is the only fork that keeps romkatv's libgit2 patches rather than dropping
+them. Those patches are where most of the speed comes from (sharded diffs, lazy ignore frames,
+`fstatat` instead of `lstat`, and a pile of thread-safety fixes), so instead of porting gitstatusd
+to vanilla libgit2, I rebased the patches onto upstream libgit2 `main` one at a time, keeping the
+ones that still mattered and dropping the ones upstream had since fixed or rewritten. The result
+lives at [aauren/libgit2](https://github.com/aauren/libgit2) on the `modernize` branch, 31 commits
+on top of upstream, and gets you SHA256 repositories, reftable, `extensions.worktreeConfig`,
+negative refspecs, and every upstream libgit2 fix from the last six years. On top of that this fork
+carries the open upstream PRs I wanted (#357, #419, #467, #483), fixes for #59, #107, #254, #365,
+#411, #474, #486 and #489, and a C++20 / CMake build with `asan` and `tsan` presets and a fixture
+suite under `test/` that checks every one of those against `git status`.
+
+I should be upfront about how the work was done: nearly all of the modernization in this repo was
+written by AI under close direction, with every change read, tested, and benchmarked before it
+landed. It's still AI. Don't expect a deeply knowledgeable C++ or libgit2 developer behind this
+project. I stand on the shoulders of romkatv, of the upstream libgit2 maintainers, and of the
+people whose ports and PRs I borrowed from:
+
+* [simnalamburt](https://github.com/simnalamburt/gitstatus) and
+  [zzJinux](https://github.com/zzJinux/gitstatus/tree/with-libgit2-v1.9.2-custom), whose ports of
+  gitstatusd to vanilla libgit2 mapped out which fork-only APIs had upstream equivalents. I took a
+  different route with libgit2 itself, but their commits were the guide for the gitstatusd side.
+* [druckdev](https://github.com/romkatv/gitstatus/pull/467) (tags in linked worktrees),
+  [puqeko](https://github.com/romkatv/gitstatus/pull/419) (don't crash on an unreadable index),
+  [orn688](https://github.com/romkatv/gitstatus/pull/357) (respect `submodule.<name>.ignore`), and
+  [chiphogg](https://github.com/romkatv/gitstatus/pull/483) (`GITSTATUS_USE_FULL_BRANCH_NAME`),
+  whose upstream PRs are carried here more or less as written.
+
+The whole point of gitstatus is speed, so I measured rather than assumed. The
+[modernization benchmarks](#modernization-benchmarks) below compare the shipped static binary
+before and after the libgit2 rebase on a large dirty repository, which is the case where a prompt
+is actually slow. The short version is that dirty trees got 16 to 25% faster and clean trees at
+high thread counts pay under a millisecond for a libgit2 that is six years newer.
+
 ## Table of Contents
 
+1. [Current State](#current-state)
 1. [Using from Zsh](#using-from-zsh)
 1. [Using from Bash](#using-from-bash)
 2. [Using from other shells](#using-from-other-shells)
@@ -36,27 +80,14 @@ For those who wish to use gitstatus without a theme, there is
 [gitstatus.prompt.zsh](gitstatus.prompt.zsh). Install it as follows:
 
 ```zsh
-git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
+git clone --depth=1 https://github.com/aauren/gitstatus.git ~/gitstatus
+(cd ~/gitstatus && ./build -w -s -d docker)
 echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
 ```
 
-Users in China can use the official mirror on gitee.com for faster download.<br>
-中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
-
-```zsh
-git clone --depth=1 https://gitee.com/romkatv/gitstatus.git ~/gitstatus
-echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
-```
-
-Alternatively, if you have Homebrew installed:
-
-```zsh
-brew install romkatv/gitstatus/gitstatus
-echo "source $(brew --prefix)/opt/gitstatus/gitstatus.prompt.zsh" >>! ~/.zshrc
-```
-
-(If you choose this option, replace `~/gitstatus` with `$(brew --prefix)/opt/gitstatus/gitstatus`
-in all code snippets below.)
+There are no prebuilt binaries for this fork and the shell bindings won't download any, so the
+`./build` step isn't optional. See [Compiling](#compiling) for what the flags do and what to drop
+if one of them doesn't apply to your system.
 
 _Make sure to disable your current theme if you have one._
 
@@ -141,27 +172,13 @@ The easiest way to take advantage of gitstatus from Bash is via
 [gitstatus.prompt.sh](gitstatus.prompt.sh). Install it as follows:
 
 ```bash
-git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
+git clone --depth=1 https://github.com/aauren/gitstatus.git ~/gitstatus
+(cd ~/gitstatus && ./build -w -s -d docker)
 echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
 
-Users in China can use the official mirror on gitee.com for faster download.<br>
-中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
-
-```bash
-git clone --depth=1 https://gitee.com/romkatv/gitstatus.git ~/gitstatus
-echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
-```
-
-Alternatively, if you have Homebrew installed:
-
-```zsh
-brew install romkatv/gitstatus/gitstatus
-echo "source $(brew --prefix)/opt/gitstatus/gitstatus.prompt.sh" >> ~/.bashrc
-```
-
-(If you choose this option, replace `~/gitstatus` with `$(brew --prefix)/opt/gitstatus/gitstatus`
-in all code snippets below.)
+As with Zsh, the `./build` step is required since there are no prebuilt binaries for this fork.
+See [Compiling](#compiling).
 
 This will give you a basic yet functional prompt with git status in it. It's
 [over 10x faster](#benchmarks) than any alternative that can give you comparable prompt.
@@ -313,6 +330,46 @@ to find tags that resolve to the same commit as `HEAD`. Lower numbers are better
 | lg2           |      185 ms |       45.2 ms |
 
 gitstatusd is once again faster than the alternatives, more so on hot runs.
+
+### Modernization benchmarks
+
+The numbers above are romkatv's, from the original libgit2 fork. The rebase onto current libgit2
+had to hold that line, so I benchmarked the shipped static binary before and after with
+[test/bench.sh](test/bench.sh), which drives the daemon over its own protocol and times the warm
+requests (a cached repository and index, an incremental scan). "Before" is `v1.5.6-aauren.1`,
+romkatv's code plus the use-after-free fix, built against his libgit2 at `2ecf3394`. "After" is
+`v2.0.0-dev` at the end of the libgit2 rebase. Both are `alpine:latest` static-pie builds run on
+the same machine, back to back, in both orders.
+
+The important workload is a dirty tree, because on a clean tree the warm time is gitstatusd's own
+directory scan and libgit2 barely runs. This one is a `/tmp` copy of
+[kubernetes](https://github.com/kubernetes/kubernetes) with about 2000 modified, 500 staged, 5000
+mtime-only touched and 3300 untracked files and `* text=auto` in `.gitattributes`. `-t` is the
+daemon's thread count; the shell bindings default to twice the CPU count, capped at 32. Warm
+microseconds per request,
+lower is better:
+
+| Workload                                     |    `-t 1` before |     `-t 1` after |   `-t 32` before |    `-t 32` after |
+|----------------------------------------------|-----------------:|-----------------:|-----------------:|-----------------:|
+| dirty kubernetes, default config             |          815,000 | 609,000 (-25%)   |          284,000 | 239,000 (-16%)   |
+| dirty kubernetes, `core.safecrlf=warn`       |          810,000 | 814,000 (flat)   |          268,000 | 286,000 (+6%)    |
+| clean linux                                  |             flat |             flat |           10,700 | 11,400 (+0.7 ms) |
+| clean kubernetes                             |             flat |             flat |            7,400 | 8,000 (+0.6 ms)  |
+| clean cilium                                 |             flat |             flat |            6,100 | 6,700 (+0.6 ms)  |
+
+Two of those rows needed work to get there. The first rebased build was 1.9x *slower* on the dirty
+tree at `-t 32` with identical single-threaded time, which turned out to be upstream libgit2
+holding `git_odb.lock` as a mutex across every object read, so 32 shards hashing files serialized
+on it. That lock is a rwlock in the fork now, and `crlf_apply_to_odb()` skips the index blob lookup
+when the buffer has no CR and `core.safecrlf` is unset, which is where the 25% on the default-config
+row comes from. The `safecrlf` row is the same workload with that shortcut disabled, so it shows the
+rest of the rebase is a wash on libgit2-heavy work.
+
+The clean-tree cost at high thread counts is malloc and the per-request config snapshot (upstream's
+`git_config_snapshot` stats every config file and copies every entry), and it is the "small
+regression" I was willing to take. Every later phase (SHA256 and reftable in the tag reader, C++20,
+CMake, the fixture suite) was benchmarked the same way against the phase before it and came out
+flat, with run order moving the numbers more than the binary did.
 
 ## Why fast
 
@@ -472,16 +529,20 @@ Once the difference between the index and the workdir is found, we have a list o
 files that may be unstaged or untracked. To make the final judgement, these files need to be checked
 against `.gitignore` rules and a few other things.
 
-gitstatusd uses [patched libgit2](https://github.com/romkatv/libgit2) for this step. This fork
-adds several optimizations that make libgit2 faster. The patched libgit2 performs more than twice
-as fast in the benchmark as the original even without changes in the user code (that is, in the
-code that uses the libgit2 APIs). The fork also adds several API extensions, most notable of which
-is the support for multi-threaded scans. If `lg2 status` is modified to take advantage of these
-extensions, it outperforms the original libgit2 by a factor of 18. Lastly, the fork fixes a score of
-bugs, most of which become apparent only when using libgit2 from multiple threads.
+gitstatusd uses [patched libgit2](https://github.com/aauren/libgit2) for this step. romkatv's
+original fork added several optimizations that make libgit2 faster. The patched libgit2 performs
+more than twice as fast in the benchmark as the original even without changes in the user code
+(that is, in the code that uses the libgit2 APIs). The fork also adds several API extensions, most
+notable of which is the support for multi-threaded scans. If `lg2 status` is modified to take
+advantage of these extensions, it outperforms the original libgit2 by a factor of 18. Lastly, the
+fork fixes a score of bugs, most of which become apparent only when using libgit2 from multiple
+threads.
 
-_WARNING: Changes to libgit2 are extensive but the testing they underwent isn't. It is
-**not recommended** to use the patched libgit2 in production._
+The libgit2 this fork of gitstatus builds against is those same patches rebased onto upstream
+libgit2 `main`, on the `modernize` branch of `aauren/libgit2`. Each patch is one commit with a note
+about what changed in the port, the ones upstream had since fixed or rewritten were dropped, and
+libgit2's own clar test suite passes on the result. It still isn't upstream libgit2, and I wouldn't
+build anything other than gitstatusd against it.
 
 ## Requirements
 
@@ -490,25 +551,16 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 
 ## Compiling
 
-There are prebuilt `gitstatusd` binaries in [releases](
-  https://github.com/romkatv/gitstatus/releases). When using the official shell bindings
-provided by gitstatus, the right binary for your architecture gets downloaded automatically.
-
-If prebuilt binaries don't work for you, you'll need to get your hands dirty.
+There are no prebuilt `gitstatusd` binaries for this fork, and unlike upstream the shell bindings
+never download one. When they can't find a binary they print a message telling you to build one.
+The bindings look, in order of precedence, at `$GITSTATUS_DAEMON` if it's set, then at
+`usrbin/gitstatusd` next to the plugin, then at `usrbin/gitstatusd-<kernel>-<arch>` (lowercase
+`uname -s` and `uname -m`) for people who keep binaries for several machines in one checkout.
 
 ### Compiling for personal use
 
 ```zsh
-git clone --depth=1 https://github.com/romkatv/gitstatus.git
-cd gitstatus
-./build -w -s -d docker
-```
-
-Users in China can use the official mirror on gitee.com for faster download.<br>
-中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
-
-```zsh
-git clone --depth=1 https://gitee.com/romkatv/gitstatus.git
+git clone --depth=1 https://github.com/aauren/gitstatus.git
 cd gitstatus
 ./build -w -s -d docker
 ```
@@ -518,17 +570,19 @@ cd gitstatus
 - If it tell you to install docker but you cannot or don't want to, remove `-d docker`.
 - If it says that some command is missing, install it.
 
+`-d docker` builds inside `alpine:latest` and produces a static-pie binary that runs on any Linux
+with the same architecture, which is how I build the binaries I actually use. `-m aarch64` builds
+for another architecture under qemu binfmt if your docker has it set up.
+
 If everything goes well, the newly built binary will appear in `./usrbin`. It'll be picked up
 by shell bindings automatically.
 
 When you update shell bindings, they may refuse to work with the binary you've built earlier. In
 this case you'll need to rebuild.
 
-If you are using gitstatus through [Powerlevel10k](https://github.com/romkatv/powerlevel10k), the
-instructions are the same except that you don't need to clone gitstatus. Instead, change your
-current directory to `/path/to/powerlevel10k/gitstatus` (`/path/to/powerlevel10k` is the directory
-where you've installed Powerlevel10k) and run `./build -w -s -d docker` from there as described
-above.
+If you are using gitstatus through [Powerlevel10k](https://github.com/romkatv/powerlevel10k), note
+that it bundles its own copy of upstream gitstatus and this fork isn't a drop-in replacement for
+that copy. I only use the plain bindings in this repository.
 
 ### Compiling for development
 
@@ -544,6 +598,15 @@ cmake --preset default && cmake --build --preset default && ctest --preset defau
 `make` does the same and copies the result to `./usrbin`. The `asan` and `tsan` presets build both
 gitstatusd and libgit2 under clang's sanitizers, and `static` is the `-static-pie` configuration
 `./build` ships.
+
+`test/run.sh [path/to/gitstatusd]` runs every fixture in `test/fixtures/` against a binary
+(`usrbin/gitstatusd` by default). Each fixture builds a small repository exercising one thing
+(linked worktrees, SHA256, reftable, split index, sparse checkout, nested `.gitignore`, negative
+refspecs, and so on), asks the daemon about it, and checks the answer against what `git status`
+says. `test/bench.sh` is the benchmark driver described [above](#modernization-benchmarks). If
+you're changing anything under `src/`, be sure to run the fixtures under the `tsan` preset too,
+since the daemon scans with up to 32 threads and the fork's thread safety is the part I trust
+least.
 
 ### Compiling for distribution
 
