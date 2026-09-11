@@ -10,7 +10,13 @@
 set -u
 
 root="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-export GITSTATUSD="${1:-$root/usrbin/gitstatusd}"
+GITSTATUSD="${1:-$root/usrbin/gitstatusd}"
+# Fixtures cd into their scratch dirs, so a relative path has to be resolved here
+case "$GITSTATUSD" in
+  /*) ;;
+  *) GITSTATUSD="$PWD/$GITSTATUSD" ;;
+esac
+export GITSTATUSD
 # Unlimited counts and no recursion into untracked dirs, which is what the
 # shell bindings use and what the untracked-dir fixtures depend on
 export GITSTATUSD_ARGS="${GITSTATUSD_ARGS:--s -1 -u -1 -d -1 -v ERROR}"
